@@ -133,3 +133,33 @@ Started: 2026-01-13
   - Capture stderr output for better error messages when process fails
   - The `--print` flag is required to pass the prompt to Claude CLI
 ---
+
+## 2026-01-13 - US-009
+- What was implemented: Output parser for Claude stream-json format
+- Files changed:
+  - source/lib/output-parser.ts - Stream parsing functions (parseStreamLine, parseStreamChunk, createStreamParser)
+  - source/lib/index.ts - Added barrel export for output-parser
+- **Learnings:**
+  - Claude stream-json format outputs one JSON object per line with `type` field
+  - Use `METADATA_EVENT_TYPES` array to filter out non-content events (system, message_start, content_block_start, etc.)
+  - The `content_block_delta` event has nested structure: `delta.type === 'text_delta'` with `delta.text` containing actual text
+  - The `result` event contains `is_error`, `duration_ms`, and `cost_usd` for summarizing execution
+  - Use empty `catch` block (not `catch(error)`) to avoid TypeScript unused variable warning
+  - For streaming chunks, buffer incomplete lines at the end to handle JSON split across chunks
+  - Factory function pattern (`createStreamParser`) works well for stateful parsers that need to accumulate output
+  - Type casting with `as` is needed when parsing JSON since `JSON.parse` returns `unknown`
+---
+
+## 2026-01-13 - US-010
+- What was implemented: OutputPanel Ink component for streaming output display
+- Files changed:
+  - source/components/OutputPanel.tsx - Main panel component with auto-scroll and configurable max lines
+  - source/components/index.ts - Added barrel export for OutputPanel
+- **Learnings:**
+  - Ink's `Box` supports `borderStyle` and `borderColor` props for terminal borders
+  - Use `wrap="truncate"` on `Text` to handle long lines that exceed terminal width
+  - For auto-scrolling output, use `useMemo` to slice the last N lines from the array
+  - Key generation for list items: use index + partial content to avoid duplicate keys
+  - Empty state handling: show "Waiting for output..." message when lines array is empty
+  - `flexGrow={1}` on Box makes the component expand to fill available space
+---
