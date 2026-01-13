@@ -20,7 +20,8 @@ export type AppView =
 	| 'no-prd'
 	| 'iteration-prompt'
 	| 'running'
-	| 'complete';
+	| 'complete'
+	| 'error';
 
 /**
  * Represents the active tab in the main view

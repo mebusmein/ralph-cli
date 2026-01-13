@@ -5,6 +5,8 @@ import {
 	MainLayout,
 	IterationPrompt,
 	KeyboardHelpFooter,
+	ErrorBoundary,
+	ErrorDisplay,
 	type TabId,
 } from './components/index.js';
 import {useKeyboardControls} from './hooks/index.js';
@@ -72,6 +74,8 @@ export default function App({
 	const [isRunning, setIsRunning] = useState(false);
 	const [isStopping, setIsStopping] = useState(false);
 	const [completionReason, setCompletionReason] = useState<string | null>(null);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [lastIterations, setLastIterations] = useState<number>(1);
 
 	// AbortController for cancellation
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -122,6 +126,8 @@ export default function App({
 			setIsRunning(true);
 			setOutputMessages([]);
 			setCompletionReason(null);
+			setErrorMessage(null);
+			setLastIterations(iterations);
 
 			const emitter = createIterationEmitter();
 			const abortController = new AbortController();
@@ -209,17 +215,13 @@ export default function App({
 				emitter,
 				abortController.signal,
 			).catch(error => {
-				setOutputMessages(prev => [
-					...prev,
-					{
-						source: 'assistant',
-						content: `\nFatal error: ${
-							error instanceof Error ? error.message : 'Unknown error'
-						}\n`,
-					},
-				]);
+				const message =
+					error instanceof Error ? error.message : 'Unknown error';
+				setErrorMessage(message);
 				setIsRunning(false);
-				setView('complete');
+				setIsStopping(false);
+				abortControllerRef.current = null;
+				setView('error');
 			});
 		},
 		[cwd, paths.prdFile, loadPRD, logFile],
@@ -229,6 +231,13 @@ export default function App({
 	const handleIterationCancel = useCallback(() => {
 		exit();
 	}, [exit]);
+
+	// Handle retry after error
+	const handleRetry = useCallback(() => {
+		setErrorMessage(null);
+		loadPRD();
+		handleIterationConfirm(lastIterations);
+	}, [loadPRD, handleIterationConfirm, lastIterations]);
 
 	// Handle stop after iteration
 	const handleStopAfterIteration = useCallback(() => {
@@ -317,33 +326,53 @@ export default function App({
 		);
 	}
 
+	if (view === 'error') {
+		return (
+			<Box flexDirection="column" padding={1}>
+				<Text color="cyan" bold>
+					Ralph CLI
+				</Text>
+				<Text> </Text>
+				<ErrorDisplay
+					error={new Error(errorMessage ?? 'An unknown error occurred')}
+					onRetry={handleRetry}
+					onExit={exit}
+				/>
+			</Box>
+		);
+	}
+
 	if (view === 'running' || view === 'complete') {
 		return (
-			<Box flexDirection="column" height={terminalHeight}>
-				<MainLayout
-					stories={stories}
-					currentStoryId={currentStoryId}
-					activeTab={activeTab}
-					outputLines={outputLines}
-					progressFilePath={paths.progressFile}
-					onTabChange={setActiveTab}
-					height={availableHeight}
-					terminalWidth={terminalWidth}
-				/>
-				{completionReason && (
-					<Box paddingX={1} marginTop={1}>
-						<Text
-							color={
-								completionReason === 'All stories passed!' ? 'green' : 'yellow'
-							}
-							bold
-						>
-							{completionReason}
-						</Text>
-					</Box>
-				)}
-				<KeyboardHelpFooter isRunning={isRunning} isStopping={isStopping} />
-			</Box>
+			<ErrorBoundary onRetry={handleRetry} onExit={exit}>
+				<Box flexDirection="column" height={terminalHeight}>
+					<MainLayout
+						stories={stories}
+						currentStoryId={currentStoryId}
+						activeTab={activeTab}
+						outputLines={outputLines}
+						progressFilePath={paths.progressFile}
+						onTabChange={setActiveTab}
+						height={availableHeight}
+						terminalWidth={terminalWidth}
+					/>
+					{completionReason && (
+						<Box paddingX={1} marginTop={1}>
+							<Text
+								color={
+									completionReason === 'All stories passed!'
+										? 'green'
+										: 'yellow'
+								}
+								bold
+							>
+								{completionReason}
+							</Text>
+						</Box>
+					)}
+					<KeyboardHelpFooter isRunning={isRunning} isStopping={isStopping} />
+				</Box>
+			</ErrorBoundary>
 		);
 	}
 
