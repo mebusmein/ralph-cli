@@ -1,0 +1,22 @@
+# Ralph Progress Log
+Started: 2026-01-13
+
+## Codebase Patterns
+- Using Ink (React) for TUI components
+- TypeScript with ESM modules
+- meow for CLI argument parsing
+- Project uses xo + prettier for linting/formatting
+- Tests use ava with ts-node
+
+## Key Files
+- source/cli.tsx - CLI entry point
+- source/app.tsx - Main React component
+- package.json - Uses "type": "module"
+- tsconfig.json - Extends @sindresorhus/tsconfig
+
+## Reference Implementation
+- ../ralph/ralph.sh - Main script structure
+- ../ralph/lib/execution.sh - Claude execution and output parsing
+- ../ralph/lib/prd.sh - PRD handling logic
+
+---

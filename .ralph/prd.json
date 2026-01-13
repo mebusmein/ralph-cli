@@ -1,0 +1,309 @@
+{
+  "branchName": "ralph/interactive-cli-manager",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create project structure and types",
+      "acceptanceCriteria": [
+        "Create types for PRD schema (UserStory, PRDConfig)",
+        "Create types for application state",
+        "Create types for configuration",
+        "Create folder structure: source/components, source/hooks, source/utils, source/lib",
+        "typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Implement setup checker utility",
+      "acceptanceCriteria": [
+        "Function to check if .ralph directory exists",
+        "Function to check if prompt.txt exists",
+        "Function to check if prd.json exists",
+        "Function to check if ralph-plan skill exists in .claude/skills",
+        "Returns structured result indicating what is missing",
+        "typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Implement setup scaffolding utility",
+      "acceptanceCriteria": [
+        "Function to create .ralph directory",
+        "Function to copy default prompt.txt template",
+        "Function to create empty prd.json template",
+        "Function to create progress.txt template",
+        "Function to install ralph-plan skill in .claude/skills",
+        "Each function is idempotent (safe to run multiple times)",
+        "typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create Setup Wizard component",
+      "acceptanceCriteria": [
+        "Ink component that displays setup progress",
+        "Shows checklist of setup items with status indicators",
+        "Prompts user for confirmation before making changes",
+        "Displays success/error messages for each step",
+        "Transitions to main view or exits with instructions when done",
+        "typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create PRD file reader and parser",
+      "acceptanceCriteria": [
+        "Function to read and parse prd.json",
+        "Validates JSON structure against types",
+        "Returns typed PRDConfig object",
+        "Handles file not found gracefully",
+        "Handles malformed JSON gracefully",
+        "typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create PRD file writer",
+      "acceptanceCriteria": [
+        "Function to write PRDConfig to prd.json",
+        "Function to update single story status (passes, notes)",
+        "Preserves formatting (pretty print)",
+        "typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create TicketList component",
+      "acceptanceCriteria": [
+        "Ink component that displays list of user stories",
+        "Shows story ID, title, and status (pending/in-progress/passed)",
+        "Uses color coding: green for passed, yellow for in-progress, gray for pending",
+        "Highlights currently executing story",
+        "Scrollable if list exceeds viewport",
+        "typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Implement Claude execution wrapper",
+      "acceptanceCriteria": [
+        "Function to spawn Claude CLI process",
+        "Passes prompt with correct parameters (--dangerously-skip-permissions, --output-format stream-json)",
+        "Streams stdout to provided callback",
+        "Returns promise that resolves when process completes",
+        "Handles process termination gracefully",
+        "typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Implement output parser for Claude stream",
+      "acceptanceCriteria": [
+        "Function to parse JSON stream lines from Claude",
+        "Extracts text content from content_block_delta events",
+        "Extracts result summary from result events",
+        "Filters out metadata events (system, message_start, etc.)",
+        "Returns parsed content string",
+        "typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create OutputPanel component",
+      "acceptanceCriteria": [
+        "Ink component that displays streaming output",
+        "Shows live Claude output with proper formatting",
+        "Auto-scrolls to latest content",
+        "Has configurable max lines/buffer size",
+        "typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create ProgressLog component",
+      "acceptanceCriteria": [
+        "Ink component that displays progress.txt content",
+        "Tails the file for live updates",
+        "Auto-scrolls to latest content",
+        "typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create TabPanel component",
+      "acceptanceCriteria": [
+        "Ink component with tab navigation",
+        "Two tabs: 'Output' and 'Progress Log'",
+        "Shows tab headers with active indicator",
+        "Renders appropriate content panel based on active tab",
+        "typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create MainLayout component",
+      "acceptanceCriteria": [
+        "Ink component with two-column layout",
+        "Left column: TicketList",
+        "Right column: TabPanel (Output/Progress)",
+        "Proper flex sizing (left ~30%, right ~70%)",
+        "typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Implement iteration prompt dialog",
+      "acceptanceCriteria": [
+        "Ink component that prompts for number of iterations",
+        "Input validation (must be positive integer)",
+        "Default value suggestion",
+        "Callback when user confirms",
+        "typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Implement iteration execution loop",
+      "acceptanceCriteria": [
+        "Function that runs N iterations",
+        "Finds highest priority incomplete story for each iteration",
+        "Calls Claude execution wrapper with proper prompt",
+        "Updates story status on completion",
+        "Emits events for UI updates",
+        "Stops early if all stories complete",
+        "typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Implement keyboard controls",
+      "acceptanceCriteria": [
+        "useInput hook for keyboard handling",
+        "Tab key switches between Output/Progress tabs",
+        "Ctrl+C cancels immediately",
+        "Ctrl+X or 'q' stops after current iteration completes",
+        "Shows keybinding help in footer",
+        "typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Implement prompt template loader",
+      "acceptanceCriteria": [
+        "Function to load prompt.txt from .ralph directory",
+        "Falls back to bundled default prompt if not found",
+        "Variable expansion for $PRD_FILE and $PROGRESS_FILE",
+        "typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Integrate all components into App",
+      "acceptanceCriteria": [
+        "App component orchestrates full flow",
+        "Runs setup wizard if needed",
+        "Shows 'no PRD' message if prd.json missing after setup",
+        "Shows main view with iteration prompt if PRD exists",
+        "Manages state for current iteration, output, etc.",
+        "typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Bundle default templates",
+      "acceptanceCriteria": [
+        "Include default prompt.txt in package",
+        "Include default prd.json template in package",
+        "Include ralph-plan skill template in package",
+        "Templates accessible at runtime via import or file read",
+        "typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Update CLI entry point",
+      "acceptanceCriteria": [
+        "Update cli.tsx with proper argument handling",
+        "Support: ralph-cli (interactive mode)",
+        "Support: ralph-cli <number> (run N iterations)",
+        "Support: ralph-cli --single/-s (run 1 iteration)",
+        "Support: ralph-cli --help/-h",
+        "typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Add error boundary and graceful error handling",
+      "acceptanceCriteria": [
+        "Error boundary component for React errors",
+        "Graceful handling of Claude process errors",
+        "Clear error messages displayed to user",
+        "Option to retry or exit on error",
+        "typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
