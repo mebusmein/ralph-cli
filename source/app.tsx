@@ -21,9 +21,14 @@ import type {AppView, StoryWithStatus} from './types/state.js';
 type Props = {
 	cwd?: string;
 	initialIterations?: number;
+	logFile?: string;
 };
 
-export default function App({cwd = process.cwd(), initialIterations}: Props) {
+export default function App({
+	cwd = process.cwd(),
+	initialIterations,
+	logFile,
+}: Props) {
 	const {exit} = useApp();
 	const paths = getRalphPaths(cwd);
 
@@ -150,6 +155,7 @@ export default function App({cwd = process.cwd(), initialIterations}: Props) {
 					iterations,
 					prdPath: paths.prdFile,
 					promptGenerator,
+					logFile,
 				},
 				emitter,
 				abortController.signal,
@@ -164,7 +170,7 @@ export default function App({cwd = process.cwd(), initialIterations}: Props) {
 				setView('complete');
 			});
 		},
-		[cwd, paths.prdFile, loadPRD],
+		[cwd, paths.prdFile, loadPRD, logFile],
 	);
 
 	// Handle iteration cancel

@@ -19,7 +19,7 @@ export function getRalphPaths(cwd: string = process.cwd()): RalphPaths {
 		progressFile: join(ralphDir, 'progress.txt'),
 		promptFile: join(ralphDir, 'prompt.txt'),
 		skillsDir,
-		ralphPlanSkill: join(skillsDir, 'ralph-plan.md'),
+		ralphPlanSkill: join(skillsDir, 'ralph-plan', 'SKILL.md'),
 	};
 }
 

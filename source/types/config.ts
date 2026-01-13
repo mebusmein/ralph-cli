@@ -43,6 +43,7 @@ export type ClaudeExecutionOptions = {
 	prompt: string;
 	onOutput?: (data: string) => void;
 	signal?: AbortSignal;
+	logFile?: string;
 };
 
 /**

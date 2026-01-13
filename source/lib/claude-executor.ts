@@ -1,4 +1,5 @@
 import {spawn, type ChildProcess} from 'node:child_process';
+import {createWriteStream, type WriteStream} from 'node:fs';
 import type {ClaudeExecutionOptions} from '../types/config.js';
 
 /**
@@ -26,10 +27,11 @@ export type ClaudeExecutionError = {
 export async function executeClaudeCommand(
 	options: ClaudeExecutionOptions,
 ): Promise<ClaudeExecutionResult> {
-	const {prompt, onOutput, signal} = options;
+	const {prompt, onOutput, signal, logFile} = options;
 
 	return new Promise(resolve => {
 		let childProcess: ChildProcess;
+		let logStream: WriteStream | undefined;
 
 		try {
 			childProcess = spawn(
@@ -39,6 +41,7 @@ export async function executeClaudeCommand(
 					'--output-format',
 					'stream-json',
 					'--print',
+					'--verbose',
 					prompt,
 				],
 				{
@@ -86,10 +89,21 @@ export async function executeClaudeCommand(
 			}
 		}
 
-		// Stream stdout to callback
-		if (childProcess.stdout && onOutput) {
+		// Create log stream if logFile is specified
+		if (logFile) {
+			logStream = createWriteStream(logFile, {flags: 'a'});
+		}
+
+		// Stream stdout to callback and log file
+		if (childProcess.stdout) {
 			childProcess.stdout.on('data', (data: Buffer) => {
-				onOutput(data.toString());
+				const dataStr = data.toString();
+				if (onOutput) {
+					onOutput(dataStr);
+				}
+				if (logStream) {
+					logStream.write(data);
+				}
 			});
 		}
 
@@ -114,6 +128,11 @@ export async function executeClaudeCommand(
 
 		// Handle process exit
 		childProcess.on('exit', (code, sig) => {
+			// Close log stream if open
+			if (logStream) {
+				logStream.end();
+			}
+
 			// Check if aborted via signal
 			if (signal?.aborted) {
 				resolve({
