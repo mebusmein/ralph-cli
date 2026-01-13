@@ -104,6 +104,19 @@ type StreamMessage =
 	| ResultMessage;
 
 /**
+ * Source type for formatted output - used for filtering
+ */
+export type FormattedOutputSource = 'assistant' | 'user' | 'result' | 'system';
+
+/**
+ * Formatted output with source information for filtering
+ */
+export type FormattedOutput = {
+	source: FormattedOutputSource;
+	content: string;
+};
+
+/**
  * Truncate a string if it exceeds the maximum length
  */
 function truncate(
@@ -273,6 +286,19 @@ function formatResultMessage(message: ResultMessage): string {
  * @returns Formatted string for display, or null if the line should be filtered out
  */
 export function formatStreamLine(line: string): string | null {
+	const result = formatStreamLineWithSource(line);
+	return result?.content ?? null;
+}
+
+/**
+ * Parse and format a single line of stream-json output with source information
+ *
+ * @param line - A single line of JSON from the stream
+ * @returns FormattedOutput with source and content, or null if the line should be filtered out
+ */
+export function formatStreamLineWithSource(
+	line: string,
+): FormattedOutput | null {
 	const trimmedLine = line.trim();
 
 	if (!trimmedLine) {
@@ -288,14 +314,20 @@ export function formatStreamLine(line: string): string | null {
 	}
 
 	switch (message.type) {
-		case 'assistant':
-			return formatAssistantMessage(message);
+		case 'assistant': {
+			const content = formatAssistantMessage(message);
+			return content ? {source: 'assistant', content} : null;
+		}
 
-		case 'user':
-			return formatUserMessage(message);
+		case 'user': {
+			const content = formatUserMessage(message);
+			return content ? {source: 'user', content} : null;
+		}
 
-		case 'result':
-			return formatResultMessage(message);
+		case 'result': {
+			const content = formatResultMessage(message);
+			return content ? {source: 'result', content} : null;
+		}
 
 		case 'system':
 			// Filter out system messages (init, etc.)
@@ -364,4 +396,117 @@ export function createStreamFormatter(): {
 			return accumulatedOutput;
 		},
 	};
+}
+
+/**
+ * Creates a filtering stream formatter that tracks message sources and filters output
+ * Shows only assistant messages, plus user/tool_result messages after the latest assistant message
+ *
+ * @returns Object with methods to process chunks and get filtered output
+ */
+export function createFilteringStreamFormatter(): {
+	processChunk: (chunk: string) => FormattedOutput[];
+	getFilteredOutput: () => FormattedOutput[];
+} {
+	const allMessages: FormattedOutput[] = [];
+	let incompleteLineBuffer = '';
+
+	return {
+		/**
+		 * Process a chunk of stream data and return filtered formatted outputs
+		 */
+		processChunk(chunk: string): FormattedOutput[] {
+			// Prepend any incomplete line from the previous chunk
+			const fullChunk = incompleteLineBuffer + chunk;
+			incompleteLineBuffer = '';
+
+			const lines = fullChunk.split('\n');
+
+			// Check if the last line is incomplete (no newline at end)
+			if (!chunk.endsWith('\n') && lines.length > 0) {
+				incompleteLineBuffer = lines.pop() ?? '';
+			}
+
+			const newMessages: FormattedOutput[] = [];
+
+			for (const line of lines) {
+				const formatted = formatStreamLineWithSource(line);
+				if (formatted !== null) {
+					allMessages.push(formatted);
+					newMessages.push(formatted);
+				}
+			}
+
+			// Return filtered messages for display
+			return filterMessagesForDisplay(allMessages);
+		},
+
+		/**
+		 * Get all filtered formatted output
+		 */
+		getFilteredOutput(): FormattedOutput[] {
+			// Process any remaining incomplete line
+			if (incompleteLineBuffer) {
+				const formatted = formatStreamLineWithSource(incompleteLineBuffer);
+				if (formatted !== null) {
+					allMessages.push(formatted);
+				}
+				incompleteLineBuffer = '';
+			}
+
+			return filterMessagesForDisplay(allMessages);
+		},
+	};
+}
+
+/**
+ * Filter messages for display: show assistant messages plus messages after the last assistant message
+ *
+ * The logic:
+ * 1. Find the index of the last assistant message
+ * 2. Include all assistant messages
+ * 3. Include all messages (user/tool_result) that come after the last assistant message
+ *
+ * This way, the user sees all assistant output, plus the current "live" tool results
+ * that are happening in response to the latest assistant action.
+ */
+export function filterMessagesForDisplay(
+	messages: FormattedOutput[],
+): FormattedOutput[] {
+	if (messages.length === 0) {
+		return [];
+	}
+
+	// Find index of the last assistant message
+	let lastAssistantIndex = -1;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i]?.source === 'assistant') {
+			lastAssistantIndex = i;
+			break;
+		}
+	}
+
+	// If no assistant messages, return all messages (might be early in stream)
+	if (lastAssistantIndex === -1) {
+		return messages;
+	}
+
+	// Filter: keep all assistant messages, and all messages after the last assistant
+	const filtered: FormattedOutput[] = [];
+	for (let i = 0; i < messages.length; i++) {
+		const message = messages[i];
+		if (!message) continue;
+
+		// Include if it's an assistant message OR if it comes after the last assistant message
+		// Also always include 'result' type (completion summary)
+		if (
+			message.source === 'assistant' ||
+			message.source === 'result' ||
+			i > lastAssistantIndex
+		) {
+			filtered.push(message);
+		}
+	}
+
+	return filtered;
 }

@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useEffect, useRef} from 'react';
+import React, {useState, useCallback, useEffect, useRef, useMemo} from 'react';
 import {Text, Box, useApp, useStdout} from 'ink';
 import {
 	SetupWizard,
@@ -14,6 +14,7 @@ import {
 	runIterations,
 	getStoriesWithStatus,
 	createPromptGenerator,
+	type FormattedOutput,
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
 import type {AppView, StoryWithStatus} from './types/state.js';
@@ -67,13 +68,19 @@ export default function App({
 	const [activeTab, setActiveTab] = useState<TabId>('output');
 	const [stories, setStories] = useState<StoryWithStatus[]>([]);
 	const [currentStoryId, setCurrentStoryId] = useState<string | null>(null);
-	const [outputLines, setOutputLines] = useState<string[]>([]);
+	const [outputMessages, setOutputMessages] = useState<FormattedOutput[]>([]);
 	const [isRunning, setIsRunning] = useState(false);
 	const [isStopping, setIsStopping] = useState(false);
 	const [completionReason, setCompletionReason] = useState<string | null>(null);
 
 	// AbortController for cancellation
 	const abortControllerRef = useRef<AbortController | null>(null);
+
+	// Convert FormattedOutput[] to string[] for display
+	const outputLines = useMemo(
+		() => outputMessages.map(msg => msg.content),
+		[outputMessages],
+	);
 
 	// Load PRD and check if it has stories
 	const loadPRD = useCallback(() => {
@@ -113,7 +120,7 @@ export default function App({
 		(iterations: number) => {
 			setView('running');
 			setIsRunning(true);
-			setOutputLines([]);
+			setOutputMessages([]);
 			setCompletionReason(null);
 
 			const emitter = createIterationEmitter();
@@ -128,14 +135,20 @@ export default function App({
 						s.id === story.id ? {...s, status: 'in-progress'} : s,
 					),
 				);
-				setOutputLines(prev => [
+				// Add story start as an assistant message for visibility
+				setOutputMessages(prev => [
 					...prev,
-					`\n--- Starting ${story.id}: ${story.title} ---\n`,
+					{
+						source: 'assistant',
+						content: `\n--- Starting ${story.id}: ${story.title} ---\n`,
+					},
 				]);
 			});
 
 			emitter.on('output', data => {
-				setOutputLines(prev => [...prev, data]);
+				// data is the filtered FormattedOutput[] - replace the current messages
+				// with the filtered view (which includes all assistant + recent user messages)
+				setOutputMessages(data);
 			});
 
 			emitter.on('storyComplete', (storyId, success) => {
@@ -150,9 +163,12 @@ export default function App({
 			});
 
 			emitter.on('iterationComplete', iteration => {
-				setOutputLines(prev => [
+				setOutputMessages(prev => [
 					...prev,
-					`\n--- Iteration ${iteration} complete ---\n`,
+					{
+						source: 'assistant',
+						content: `\n--- Iteration ${iteration} complete ---\n`,
+					},
 				]);
 				// Reload PRD to get updated statuses
 				loadPRD();
@@ -175,7 +191,10 @@ export default function App({
 			});
 
 			emitter.on('error', errorMsg => {
-				setOutputLines(prev => [...prev, `\nError: ${errorMsg}\n`]);
+				setOutputMessages(prev => [
+					...prev,
+					{source: 'assistant', content: `\nError: ${errorMsg}\n`},
+				]);
 			});
 
 			// Start execution
@@ -190,11 +209,14 @@ export default function App({
 				emitter,
 				abortController.signal,
 			).catch(error => {
-				setOutputLines(prev => [
+				setOutputMessages(prev => [
 					...prev,
-					`\nFatal error: ${
-						error instanceof Error ? error.message : 'Unknown error'
-					}\n`,
+					{
+						source: 'assistant',
+						content: `\nFatal error: ${
+							error instanceof Error ? error.message : 'Unknown error'
+						}\n`,
+					},
 				]);
 				setIsRunning(false);
 				setView('complete');

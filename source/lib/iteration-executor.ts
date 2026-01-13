@@ -4,7 +4,10 @@ import type {StoryWithStatus} from '../types/state.js';
 import {executeClaudeCommand} from './claude-executor.js';
 import {readPRDFile} from './prd-reader.js';
 import {updateStoryStatus} from './prd-writer.js';
-import {createStreamFormatter} from './stream-formatter.js';
+import {
+	createFilteringStreamFormatter,
+	type FormattedOutput,
+} from './stream-formatter.js';
 
 /**
  * Events emitted by the iteration executor
@@ -21,9 +24,9 @@ export type IterationExecutorEvents = {
 	storyStart: [story: UserStory];
 
 	/**
-	 * Emitted when Claude outputs data
+	 * Emitted when Claude outputs data (filtered to show mainly assistant messages)
 	 */
-	output: [data: string];
+	output: [data: FormattedOutput[]];
 
 	/**
 	 * Emitted when a story completes (successfully or not)
@@ -154,15 +157,15 @@ export async function runIterations(
 		// Generate prompt and execute Claude
 		const prompt = promptGenerator(nextStory);
 
-		// Create a stream formatter for this iteration
-		const streamFormatter = createStreamFormatter();
+		// Create a filtering stream formatter for this iteration
+		const streamFormatter = createFilteringStreamFormatter();
 
 		const result = await executeClaudeCommand({
 			prompt,
 			onOutput: data => {
-				const formatted = streamFormatter.processChunk(data);
-				if (formatted) {
-					emitter.emit('output', formatted);
+				const filtered = streamFormatter.processChunk(data);
+				if (filtered.length > 0) {
+					emitter.emit('output', filtered);
 				}
 			},
 			signal: abortSignal,
