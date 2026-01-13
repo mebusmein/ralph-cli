@@ -6,6 +6,7 @@ type Props = {
 	stories: StoryWithStatus[];
 	currentStoryId: string | null;
 	maxHeight?: number;
+	availableWidth?: number;
 };
 
 /**
@@ -59,11 +60,18 @@ function getStatusIndicator(status: StoryStatus): string {
 type TicketItemProps = {
 	story: StoryWithStatus;
 	isCurrentStory: boolean;
+	maxTitleLength?: number;
 };
 
-function TicketItem({story, isCurrentStory}: TicketItemProps) {
+function TicketItem({story, isCurrentStory, maxTitleLength}: TicketItemProps) {
 	const statusColor = getStatusColor(story.status);
 	const statusIndicator = getStatusIndicator(story.status);
+
+	// Truncate title if it exceeds maxTitleLength
+	let displayTitle = story.title;
+	if (maxTitleLength && displayTitle.length > maxTitleLength) {
+		displayTitle = displayTitle.slice(0, maxTitleLength - 1) + '…';
+	}
 
 	return (
 		<Box>
@@ -80,7 +88,7 @@ function TicketItem({story, isCurrentStory}: TicketItemProps) {
 				color={isCurrentStory ? 'cyan' : undefined}
 			>
 				{' '}
-				- {story.title}
+				- {displayTitle}
 			</Text>
 		</Box>
 	);
@@ -90,7 +98,15 @@ export default function TicketList({
 	stories,
 	currentStoryId,
 	maxHeight,
+	availableWidth,
 }: Props) {
+	// Calculate max title length based on available width
+	// Format: "✓ US-XXX - Title" = status (2) + id (6-7) + separator (3) + title
+	// Account for: status indicator (2 chars), story ID (typically 6-7 chars), " - " separator (3 chars)
+	const fixedOverhead = 12; // "✓ " (2) + "US-XXX" (6) + " - " (3) + padding (1)
+	const maxTitleLength = availableWidth
+		? Math.max(10, availableWidth - fixedOverhead)
+		: undefined;
 	// Calculate scroll position to keep current story visible
 	const {visibleStories, scrollInfo} = useMemo(() => {
 		if (!maxHeight || stories.length <= maxHeight) {
@@ -143,6 +159,7 @@ export default function TicketList({
 						key={story.id}
 						story={story}
 						isCurrentStory={story.id === currentStoryId}
+						maxTitleLength={maxTitleLength}
 					/>
 				))}
 				{scrollInfo?.hasMore && (

@@ -414,6 +414,21 @@
 			"priority": 25,
 			"passes": true,
 			"notes": "This fixes the core bug: marking the story the AI actually worked on as complete, not the one the system pre-selected."
+		},
+		{
+			"id": "US-028",
+			"title": "Fix TicketList overflow and text truncation",
+			"acceptanceCriteria": [
+				"Pass terminalWidth to TicketList component from MainLayout",
+				"Calculate available width for left column (30% of terminal minus padding)",
+				"Truncate story titles to fit within available width with ellipsis",
+				"Account for status indicator and story ID in width calculation",
+				"Ensure no text wraps or overflows into right panel",
+				"typecheck passes"
+			],
+			"priority": 26,
+			"passes": true,
+			"notes": "Bug: Long story titles wrap to multiple lines causing messy layout with text overflowing the column boundaries."
 		}
 	]
 }

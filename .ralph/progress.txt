@@ -426,3 +426,16 @@ Started: 2026-01-13
   - Use `Array.some()` for existence checks in arrays - cleaner than `findIndex !== -1`
   - The xo linter bug with `unicorn/expiring-todo-comments` is still present - `tsc --noEmit` is the reliable verification
 ---
+
+## 2026-01-13 - US-028
+- What was implemented: Fixed TicketList overflow by adding width-based title truncation
+- Files changed:
+  - source/components/TicketList.tsx - Added `availableWidth` prop, `maxTitleLength` calculation, and truncation logic in TicketItem
+  - source/components/MainLayout.tsx - Added `leftColumnWidth` calculation and passes it to TicketList as `availableWidth`
+- **Learnings:**
+  - Calculate available width for text by subtracting fixed overhead (status indicator, ID, separators) from column width
+  - Use ellipsis character (`…`) for truncation indicator - it's a single character unlike `...` which is three
+  - Fixed overhead calculation: 2 (status indicator + space) + 6 (story ID like US-XXX) + 3 (" - " separator) + 1 (padding) = 12 chars
+  - Use `Math.max(10, calculatedWidth)` to ensure minimum readable title length even in narrow terminals
+  - Props flow: terminalWidth -> MainLayout -> leftColumnWidth -> TicketList.availableWidth -> TicketItem.maxTitleLength
+---
