@@ -77,8 +77,11 @@ export default function App({
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [lastIterations, setLastIterations] = useState<number>(1);
 
-	// AbortController for cancellation
+	// AbortController for immediate cancellation
 	const abortControllerRef = useRef<AbortController | null>(null);
+
+	// Ref for graceful stop-after-iteration flag
+	const stopAfterIterationRef = useRef<boolean>(false);
 
 	// Convert FormattedOutput[] to string[] for display
 	const outputLines = useMemo(
@@ -132,6 +135,7 @@ export default function App({
 			const emitter = createIterationEmitter();
 			const abortController = new AbortController();
 			abortControllerRef.current = abortController;
+			stopAfterIterationRef.current = false;
 
 			// Set up event listeners
 			emitter.on('storyStart', story => {
@@ -211,6 +215,7 @@ export default function App({
 					prdPath: paths.prdFile,
 					promptGenerator,
 					logFile,
+					shouldStopAfterIteration: () => stopAfterIterationRef.current,
 				},
 				emitter,
 				abortController.signal,
@@ -239,11 +244,11 @@ export default function App({
 		handleIterationConfirm(lastIterations);
 	}, [loadPRD, handleIterationConfirm, lastIterations]);
 
-	// Handle stop after iteration
+	// Handle stop after iteration (graceful stop - doesn't kill current process)
 	const handleStopAfterIteration = useCallback(() => {
 		if (isRunning && !isStopping) {
 			setIsStopping(true);
-			abortControllerRef.current?.abort();
+			stopAfterIterationRef.current = true;
 		}
 	}, [isRunning, isStopping]);
 

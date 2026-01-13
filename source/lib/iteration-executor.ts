@@ -72,6 +72,13 @@ export type IterationOptions = {
 	 * Optional path to log raw JSON output
 	 */
 	logFile?: string;
+
+	/**
+	 * Optional function that returns true when we should stop after the current iteration.
+	 * Unlike abortSignal which kills the current process, this allows the current
+	 * iteration to complete before stopping.
+	 */
+	shouldStopAfterIteration?: () => boolean;
 };
 
 /**
@@ -122,7 +129,13 @@ export async function runIterations(
 	emitter: EventEmitter<IterationExecutorEvents>,
 	abortSignal?: AbortSignal,
 ): Promise<void> {
-	const {iterations, prdPath, promptGenerator, logFile} = options;
+	const {
+		iterations,
+		prdPath,
+		promptGenerator,
+		logFile,
+		shouldStopAfterIteration,
+	} = options;
 
 	for (let i = 1; i <= iterations; i++) {
 		// Check for abort before starting iteration
@@ -196,6 +209,12 @@ export async function runIterations(
 		}
 
 		emitter.emit('iterationComplete', i);
+
+		// Check if we should stop after this iteration (graceful stop)
+		if (shouldStopAfterIteration?.()) {
+			emitter.emit('complete', 'stopped');
+			return;
+		}
 	}
 
 	emitter.emit('complete', 'finished');
