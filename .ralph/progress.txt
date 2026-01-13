@@ -163,3 +163,57 @@ Started: 2026-01-13
   - Empty state handling: show "Waiting for output..." message when lines array is empty
   - `flexGrow={1}` on Box makes the component expand to fill available space
 ---
+
+## 2026-01-13 - US-011
+- What was implemented: ProgressLog Ink component for displaying and live-tailing progress.txt
+- Files changed:
+  - source/components/ProgressLog.tsx - Main component with file watching and auto-scroll
+  - source/components/index.ts - Added barrel export for ProgressLog
+- **Learnings:**
+  - Use `watchFile` and `unwatchFile` from `node:fs` for file change monitoring
+  - `watchFile` accepts an `interval` option (in ms) to control polling frequency (500ms works well)
+  - Cleanup is essential: call `unwatchFile` in useEffect cleanup function to prevent memory leaks
+  - Handle file-not-found case separately from read errors for better user experience
+  - Empty content check needs to handle both empty array and single-empty-string cases
+  - Component structure mirrors OutputPanel for consistency in the codebase
+---
+
+## 2026-01-13 - US-012
+- What was implemented: TabPanel Ink component with tab navigation for switching between Output and Progress Log views
+- Files changed:
+  - source/components/TabPanel.tsx - Main component with tab headers and content switching
+  - source/components/index.ts - Added barrel export for TabPanel and TabId type
+- **Learnings:**
+  - Use `inverse` prop on Text for highlighted/active tab appearance in terminal UIs
+  - Export component types alongside default exports: `export {default as TabPanel, type TabId}`
+  - Tab panels compose child components (OutputPanel, ProgressLog) by passing empty `title=""` to suppress child titles
+  - Use `gap` prop on Box for spacing between tab headers instead of margin on individual items
+  - The `flexGrow={1}` with empty Box acts as a spacer to push help text to the right
+---
+
+## 2026-01-13 - US-013
+- What was implemented: MainLayout Ink component with two-column layout for the main application view
+- Files changed:
+  - source/components/MainLayout.tsx - Main layout component composing TicketList and TabPanel
+  - source/components/index.ts - Added barrel export for MainLayout
+- **Learnings:**
+  - Use `width="30%"` and `width="70%"` for percentage-based column sizing in Ink
+  - Combine `flexGrow={1}` with percentage widths for flexible yet proportional layouts
+  - Use `paddingRight={1}` for visual separation between columns in terminal UI
+  - Layout components should pass through all necessary props to child components (stories, outputLines, etc.)
+  - Re-export the `TabId` type from TabPanel when needed in layout component props
+---
+
+## 2026-01-13 - US-014
+- What was implemented: IterationPrompt Ink component for prompting user for number of iterations
+- Files changed:
+  - source/components/IterationPrompt.tsx - Main prompt component with input validation
+  - source/components/index.ts - Added barrel export for IterationPrompt
+- **Learnings:**
+  - Ink's `useInput` receives character as first arg and key object as second
+  - Handle backspace/delete by slicing off last character from input state
+  - Only allow digits by testing with `/^\d$/` regex before appending to input
+  - Validation should happen on Enter: check for NaN, <= 0, and reasonable upper limit
+  - Show cursor position with `{input || '_'}` pattern for empty state visibility
+  - Keep validation messages in separate error state for clear conditional rendering
+---
