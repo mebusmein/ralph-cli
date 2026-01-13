@@ -20,3 +20,116 @@ Started: 2026-01-13
 - ../ralph/lib/prd.sh - PRD handling logic
 
 ---
+
+## 2026-01-13 - US-001
+- What was implemented: Project structure and types for the entire application
+- Files changed:
+  - source/types/prd.ts - PRD schema types (UserStory, PRDConfig)
+  - source/types/state.ts - Application state types (AppState, StoryStatus, etc.)
+  - source/types/config.ts - Configuration types (RalphPaths, CLIFlags, Claude event types)
+  - source/types/index.ts - Barrel export file
+  - Created folders: source/components, source/hooks, source/utils, source/lib
+- **Learnings:**
+  - The project uses ESM modules so imports need `.js` extension (e.g., `./prd.js`)
+  - TypeScript extends @sindresorhus/tsconfig which has strict settings
+  - xo + prettier handle linting/formatting with "prettier": true in xo config
+---
+
+## 2026-01-13 - US-002
+- What was implemented: Setup checker utility functions
+- Files changed:
+  - source/utils/setup-checker.ts - Core setup checking functions
+  - source/utils/index.ts - Barrel export for utils
+  - source/types/state.ts - Prettier formatting fix
+- **Learnings:**
+  - Types for SetupCheckItem and SetupCheckResult already existed in config.ts
+  - Use `existsSync` from `node:fs` for synchronous file/directory existence checks
+  - The xo linter has a pre-existing bug with the `unicorn/expiring-todo-comments` rule that causes crashes
+  - Always run `npx prettier --write` on new files before committing
+  - Barrel exports use `.js` extension in ESM: `export * from './setup-checker.js'`
+---
+
+## 2026-01-13 - US-003
+- What was implemented: Setup scaffolding utility functions for creating Ralph project structure
+- Files changed:
+  - source/utils/setup-scaffolding.ts - Scaffolding functions and bundled templates
+  - source/utils/index.ts - Added barrel export for setup-scaffolding
+- **Learnings:**
+  - Use `mkdirSync(path, {recursive: true})` for idempotent directory creation
+  - `dirname()` from `node:path` is useful for ensuring parent directories exist before writing files
+  - Templates can be bundled as string constants in TypeScript for simpler packaging
+  - Keep functions idempotent by checking existence before creating (return early if exists)
+  - TypeScript strict mode catches unused imports - remove them before committing
+  - The progress.txt template uses dynamic date: `new Date().toISOString().split('T')[0]`
+---
+
+## 2026-01-13 - US-004
+- What was implemented: Setup Wizard Ink component for interactive setup flow
+- Files changed:
+  - source/components/SetupWizard.tsx - Main wizard component with multi-step flow
+  - source/components/index.ts - Barrel export for components
+- **Learnings:**
+  - Ink's `useInput` hook handles keyboard input with input string and key object
+  - Ink's `useApp` provides `exit()` function for graceful app termination
+  - Use `useState` with step enum to manage wizard flow states (checking, prompt, scaffolding, complete, error)
+  - Component state updates in sequence can be tracked with partial status objects
+  - Ink components use `Box` for layout (flexbox model) and `Text` for styled text output
+  - The `marginY` and `marginLeft` props on Box provide spacing in terminal UI
+  - ScaffoldResult type already exported from setup-scaffolding.ts, can be imported with `type` keyword
+---
+
+## 2026-01-13 - US-005
+- What was implemented: PRD file reader and parser with validation
+- Files changed:
+  - source/lib/prd-reader.ts - Main reader function with JSON validation
+  - source/lib/index.ts - Barrel export for lib directory
+- **Learnings:**
+  - TypeScript strict mode with @sindresorhus/tsconfig requires bracket notation for index signatures (e.g., `obj['key']` not `obj.key` when obj is `Record<string, unknown>`)
+  - Use discriminated unions for Result types: `{success: true; config: PRDConfig} | {success: false; error: PRDReadError}`
+  - Type guards (`obj is T` return type) enable safe narrowing after validation
+  - For JSON parsing, cast unknown arrays before calling array methods: `(arr as unknown[]).every(...)`
+  - NodeJS.ErrnoException has a `code` property for checking ENOENT (file not found)
+---
+
+## 2026-01-13 - US-006
+- What was implemented: PRD file writer with functions to write full config and update individual story statuses
+- Files changed:
+  - source/lib/prd-writer.ts - Main writer functions (writePRDFile, updateStoryStatus)
+  - source/lib/index.ts - Added barrel export for prd-writer
+- **Learnings:**
+  - Use `JSON.stringify(obj, null, '\t')` for tab-based pretty printing that matches existing prd.json format
+  - Append `+ '\n'` to JSON output to ensure file ends with newline
+  - The `updateStoryStatus` function composes read + modify + write for atomic story updates
+  - TypeScript strict mode requires checking `story` existence after `findIndex` even though we already validated the index
+  - Result types should use different error types: `write_failed`, `story_not_found`, `read_failed` for clear error handling
+---
+
+## 2026-01-13 - US-007
+- What was implemented: TicketList Ink component for displaying user stories with status
+- Files changed:
+  - source/components/TicketList.tsx - Main component with scrollable list
+  - source/components/index.ts - Added barrel export for TicketList
+- **Learnings:**
+  - Ink's `Text` component supports `dimColor` prop for grayed-out pending items
+  - Use `useMemo` for calculating scroll position to avoid recalculation on every render
+  - Status indicators with unicode characters (✓, ▶, ✗, ○) work well in terminal UIs
+  - For scrollable lists, calculate visible window based on `maxHeight` and keep current item centered
+  - Export default components and re-export from barrel file: `export {default as TicketList} from './TicketList.js'`
+  - Color coding for statuses: green=passed, yellow=in-progress, red=failed, gray=pending
+---
+
+## 2026-01-13 - US-008
+- What was implemented: Claude CLI execution wrapper with process spawning and streaming output
+- Files changed:
+  - source/lib/claude-executor.ts - Main executor function with abort signal support
+  - source/lib/index.ts - Added barrel export for claude-executor
+- **Learnings:**
+  - Use `spawn` from `node:child_process` with `shell: false` for safer process execution
+  - AbortSignal integration: register handler with `signal.addEventListener('abort', handler, {once: true})`
+  - Clean up abort listeners in the `exit` event to prevent memory leaks
+  - Check `signal.aborted` before starting to handle pre-aborted signals
+  - Use `stdio: ['ignore', 'pipe', 'pipe']` to ignore stdin but capture stdout/stderr
+  - ChildProcess `exit` event provides `code` (number|null) and `signal` (string|null) parameters
+  - Capture stderr output for better error messages when process fails
+  - The `--print` flag is required to pass the prompt to Claude CLI
+---
