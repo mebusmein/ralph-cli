@@ -4,6 +4,7 @@ import type {StoryWithStatus} from '../types/state.js';
 import {executeClaudeCommand} from './claude-executor.js';
 import {readPRDFile} from './prd-reader.js';
 import {updateStoryStatus} from './prd-writer.js';
+import {createStreamFormatter} from './stream-formatter.js';
 
 /**
  * Events emitted by the iteration executor
@@ -63,6 +64,11 @@ export type IterationOptions = {
 	 * Function to generate the prompt for a story
 	 */
 	promptGenerator: (story: UserStory) => string;
+
+	/**
+	 * Optional path to log raw JSON output
+	 */
+	logFile?: string;
 };
 
 /**
@@ -113,7 +119,7 @@ export async function runIterations(
 	emitter: EventEmitter<IterationExecutorEvents>,
 	abortSignal?: AbortSignal,
 ): Promise<void> {
-	const {iterations, prdPath, promptGenerator} = options;
+	const {iterations, prdPath, promptGenerator, logFile} = options;
 
 	for (let i = 1; i <= iterations; i++) {
 		// Check for abort before starting iteration
@@ -148,12 +154,19 @@ export async function runIterations(
 		// Generate prompt and execute Claude
 		const prompt = promptGenerator(nextStory);
 
+		// Create a stream formatter for this iteration
+		const streamFormatter = createStreamFormatter();
+
 		const result = await executeClaudeCommand({
 			prompt,
 			onOutput: data => {
-				emitter.emit('output', data);
+				const formatted = streamFormatter.processChunk(data);
+				if (formatted) {
+					emitter.emit('output', formatted);
+				}
 			},
 			signal: abortSignal,
+			logFile,
 		});
 
 		if (!result.success) {

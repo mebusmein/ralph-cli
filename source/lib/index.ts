@@ -4,3 +4,4 @@ export * from './claude-executor.js';
 export * from './output-parser.js';
 export * from './iteration-executor.js';
 export * from './prompt-loader.js';
+export * from './stream-formatter.js';
