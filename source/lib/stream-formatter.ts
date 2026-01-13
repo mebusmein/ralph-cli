@@ -24,6 +24,18 @@ const COLORS = {
 const MAX_CONTENT_LENGTH = 200;
 
 /**
+ * Regex pattern to strip ANSI escape codes
+ */
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+
+/**
+ * Strip ANSI escape codes from a string
+ */
+function stripAnsiCodes(text: string): string {
+	return text.replace(ANSI_PATTERN, '');
+}
+
+/**
  * Content types in assistant messages
  */
 type AssistantContentItem =
@@ -216,6 +228,26 @@ function formatToolResult(
 }
 
 /**
+ * Extract raw text content from an assistant message for parsing
+ * Includes text content and tool_use names/descriptions (no ANSI codes)
+ */
+function extractRawAssistantContent(message: AssistantMessage): string {
+	const parts: string[] = [];
+
+	for (const item of message.message.content) {
+		if (item.type === 'text') {
+			parts.push(item.text);
+		} else if (item.type === 'tool_use') {
+			// Include tool name and summarized input for context
+			const inputSummary = summarizeToolInput(item.input);
+			parts.push(`[${item.name}] ${inputSummary}`);
+		}
+	}
+
+	return parts.join('\n');
+}
+
+/**
  * Format an assistant message
  */
 function formatAssistantMessage(message: AssistantMessage): string {
@@ -402,14 +434,39 @@ export function createStreamFormatter(): {
  * Creates a filtering stream formatter that tracks message sources and filters output
  * Shows only assistant messages, plus user/tool_result messages after the latest assistant message
  *
- * @returns Object with methods to process chunks and get filtered output
+ * @returns Object with methods to process chunks, get filtered output, and get raw text content
  */
 export function createFilteringStreamFormatter(): {
 	processChunk: (chunk: string) => FormattedOutput[];
 	getFilteredOutput: () => FormattedOutput[];
+	getRawTextContent: () => string;
 } {
 	const allMessages: FormattedOutput[] = [];
+	const rawTextParts: string[] = [];
 	let incompleteLineBuffer = '';
+
+	/**
+	 * Process a line and accumulate raw text content from assistant messages
+	 */
+	function processLineForRawContent(line: string): void {
+		const trimmedLine = line.trim();
+		if (!trimmedLine) return;
+
+		let message: StreamMessage;
+		try {
+			message = JSON.parse(trimmedLine) as StreamMessage;
+		} catch {
+			return;
+		}
+
+		// Only accumulate raw content from assistant messages
+		if (message.type === 'assistant') {
+			const rawContent = extractRawAssistantContent(message);
+			if (rawContent) {
+				rawTextParts.push(rawContent);
+			}
+		}
+	}
 
 	return {
 		/**
@@ -430,6 +487,9 @@ export function createFilteringStreamFormatter(): {
 			const newMessages: FormattedOutput[] = [];
 
 			for (const line of lines) {
+				// Accumulate raw text content for story detection
+				processLineForRawContent(line);
+
 				const formatted = formatStreamLineWithSource(line);
 				if (formatted !== null) {
 					allMessages.push(formatted);
@@ -447,6 +507,8 @@ export function createFilteringStreamFormatter(): {
 		getFilteredOutput(): FormattedOutput[] {
 			// Process any remaining incomplete line
 			if (incompleteLineBuffer) {
+				processLineForRawContent(incompleteLineBuffer);
+
 				const formatted = formatStreamLineWithSource(incompleteLineBuffer);
 				if (formatted !== null) {
 					allMessages.push(formatted);
@@ -455,6 +517,21 @@ export function createFilteringStreamFormatter(): {
 			}
 
 			return filterMessagesForDisplay(allMessages);
+		},
+
+		/**
+		 * Get concatenated raw text content from all assistant messages
+		 * Useful for parsing to detect story IDs and other patterns
+		 * ANSI codes are stripped for clean text parsing
+		 */
+		getRawTextContent(): string {
+			// Process any remaining incomplete line first
+			if (incompleteLineBuffer) {
+				processLineForRawContent(incompleteLineBuffer);
+			}
+
+			// Join all parts and strip any ANSI codes that might have slipped through
+			return stripAnsiCodes(rawTextParts.join('\n'));
 		},
 	};
 }
