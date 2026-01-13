@@ -4,6 +4,7 @@ import type {StoryWithStatus} from '../types/state.js';
 import {executeClaudeCommand} from './claude-executor.js';
 import {readPRDFile} from './prd-reader.js';
 import {updateStoryStatus} from './prd-writer.js';
+import {detectStoryIdFromOutput} from './story-detector.js';
 import {
 	createFilteringStreamFormatter,
 	type FormattedOutput,
@@ -32,6 +33,16 @@ export type IterationExecutorEvents = {
 	 * Emitted when a story completes (successfully or not)
 	 */
 	storyComplete: [storyId: string, success: boolean];
+
+	/**
+	 * Emitted when the detected story ID differs from the expected story
+	 */
+	storyMismatch: [expectedId: string, detectedId: string];
+
+	/**
+	 * Emitted when no story ID could be detected from AI output (warning)
+	 */
+	storyDetectionFailed: [fallbackId: string];
 
 	/**
 	 * Emitted when iteration completes
@@ -196,8 +207,39 @@ export async function runIterations(
 			emitter.emit('storyComplete', nextStory.id, false);
 			// Continue to next iteration even on error
 		} else {
+			// Get raw text content from the AI output for story detection
+			const rawOutput = streamFormatter.getRawTextContent();
+			const detectionResult = detectStoryIdFromOutput(rawOutput);
+
+			// Determine which story ID to use for updating
+			let storyIdToMark = nextStory.id;
+
+			if (detectionResult) {
+				const detectedId = detectionResult.storyId;
+
+				// Verify the detected story exists in the PRD
+				const storyExists = config.userStories.some(s => s.id === detectedId);
+
+				if (storyExists) {
+					if (detectedId !== nextStory.id) {
+						// Detected story differs from pre-selected story
+						emitter.emit('storyMismatch', nextStory.id, detectedId);
+					}
+					storyIdToMark = detectedId;
+				} else {
+					// Detected story doesn't exist in PRD, fall back to pre-selected
+					emitter.emit(
+						'error',
+						`Detected story ${detectedId} not found in PRD, using ${nextStory.id}`,
+					);
+				}
+			} else {
+				// No story ID detected, fall back to pre-selected story with warning
+				emitter.emit('storyDetectionFailed', nextStory.id);
+			}
+
 			// Update story status in PRD
-			const updateResult = updateStoryStatus(prdPath, nextStory.id, {
+			const updateResult = updateStoryStatus(prdPath, storyIdToMark, {
 				passes: true,
 			});
 
@@ -205,7 +247,7 @@ export async function runIterations(
 				emitter.emit('error', updateResult.error.message);
 			}
 
-			emitter.emit('storyComplete', nextStory.id, true);
+			emitter.emit('storyComplete', storyIdToMark, true);
 		}
 
 		emitter.emit('iterationComplete', i);

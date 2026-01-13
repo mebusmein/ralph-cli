@@ -207,6 +207,32 @@ export default function App({
 				]);
 			});
 
+			emitter.on('storyMismatch', (expectedId, detectedId) => {
+				setOutputMessages(prev => [
+					...prev,
+					{
+						source: 'assistant',
+						content: `\n⚠ Story mismatch: expected ${expectedId}, AI worked on ${detectedId}. Marking ${detectedId} as complete.\n`,
+					},
+				]);
+				// Update the story list to reflect the actual story that was worked on
+				setStories(prevStories =>
+					prevStories.map(s =>
+						s.id === detectedId ? {...s, status: 'in-progress'} : s,
+					),
+				);
+			});
+
+			emitter.on('storyDetectionFailed', fallbackId => {
+				setOutputMessages(prev => [
+					...prev,
+					{
+						source: 'assistant',
+						content: `\n⚠ Could not detect story ID from output. Marking ${fallbackId} as complete.\n`,
+					},
+				]);
+			});
+
 			// Start execution
 			const promptGenerator = createPromptGenerator(cwd);
 			runIterations(
