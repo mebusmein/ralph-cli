@@ -1,5 +1,5 @@
 import React, {useState, useCallback, useEffect, useRef} from 'react';
-import {Text, Box, useApp} from 'ink';
+import {Text, Box, useApp, useStdout} from 'ink';
 import {
 	SetupWizard,
 	MainLayout,
@@ -30,7 +30,37 @@ export default function App({
 	logFile,
 }: Props) {
 	const {exit} = useApp();
+	const {stdout} = useStdout();
 	const paths = getRalphPaths(cwd);
+
+	// Terminal dimensions for fixed-height layout
+	const [terminalHeight, setTerminalHeight] = useState(stdout?.rows ?? 24);
+	const [terminalWidth, setTerminalWidth] = useState(stdout?.columns ?? 80);
+
+	// Listen for terminal resize events
+	useEffect(() => {
+		if (!stdout) return;
+
+		const handleResize = () => {
+			setTerminalHeight(stdout.rows);
+			setTerminalWidth(stdout.columns);
+		};
+
+		stdout.on('resize', handleResize);
+		// Set initial values
+		handleResize();
+
+		return () => {
+			stdout.off('resize', handleResize);
+		};
+	}, [stdout]);
+
+	// Calculate available height for MainLayout (reserve space for footer, completion message, padding)
+	// Footer: 3 rows (border + content + margin)
+	// Completion message: 2 rows (when shown)
+	// Top padding: 0
+	const reservedRows = 5;
+	const availableHeight = Math.max(10, terminalHeight - reservedRows);
 
 	// Application state
 	const [view, setView] = useState<AppView>('setup');
@@ -267,7 +297,7 @@ export default function App({
 
 	if (view === 'running' || view === 'complete') {
 		return (
-			<Box flexDirection="column" height="100%">
+			<Box flexDirection="column" height={terminalHeight}>
 				<MainLayout
 					stories={stories}
 					currentStoryId={currentStoryId}
@@ -275,6 +305,8 @@ export default function App({
 					outputLines={outputLines}
 					progressFilePath={paths.progressFile}
 					onTabChange={setActiveTab}
+					height={availableHeight}
+					terminalWidth={terminalWidth}
 				/>
 				{completionReason && (
 					<Box paddingX={1} marginTop={1}>

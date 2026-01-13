@@ -21,6 +21,7 @@ type Props = {
 	progressFilePath: string;
 	maxLines?: number;
 	onTabChange?: (tab: TabId) => void;
+	contentWidth?: number;
 };
 
 export default function TabPanel({
@@ -28,6 +29,7 @@ export default function TabPanel({
 	outputLines,
 	progressFilePath,
 	maxLines = 20,
+	contentWidth,
 }: Props) {
 	return (
 		<Box flexDirection="column" flexGrow={1}>
@@ -54,14 +56,20 @@ export default function TabPanel({
 			</Box>
 
 			{/* Tab content */}
-			<Box flexDirection="column" flexGrow={1} marginTop={1}>
+			<Box flexDirection="column" flexGrow={1} marginTop={1} overflow="hidden">
 				{activeTab === 'output' ? (
-					<OutputPanel lines={outputLines} maxLines={maxLines} title="" />
+					<OutputPanel
+						lines={outputLines}
+						maxLines={maxLines}
+						title=""
+						contentWidth={contentWidth}
+					/>
 				) : (
 					<ProgressLog
 						filePath={progressFilePath}
 						maxLines={maxLines}
 						title=""
+						contentWidth={contentWidth}
 					/>
 				)}
 			</Box>

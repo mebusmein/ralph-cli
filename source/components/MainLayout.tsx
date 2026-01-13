@@ -12,6 +12,8 @@ type Props = {
 	progressFilePath: string;
 	maxLines?: number;
 	onTabChange?: (tab: TabId) => void;
+	height?: number;
+	terminalWidth?: number;
 };
 
 export default function MainLayout({
@@ -22,15 +24,29 @@ export default function MainLayout({
 	progressFilePath,
 	maxLines = 20,
 	onTabChange,
+	height,
+	terminalWidth = 80,
 }: Props) {
+	// Calculate content panel width (70% of terminal width minus padding/borders)
+	// Left column is 30%, right is 70%
+	// Account for: left padding (1), right panel border (2), right panel paddingX (2)
+	const rightPanelWidth = Math.floor(terminalWidth * 0.7) - 5;
+
+	// Calculate max visible lines for content panels
+	// Account for: title (1), tab headers (1), margin (1), border top/bottom (2), scroll indicator (1)
+	const contentPanelReserved = 6;
+	const effectiveMaxLines = height
+		? Math.max(3, height - contentPanelReserved)
+		: maxLines;
+
 	return (
-		<Box flexDirection="row" flexGrow={1}>
+		<Box flexDirection="row" height={height} overflow="hidden">
 			{/* Left column: TicketList (~30%) */}
 			<Box flexDirection="column" width="30%" paddingRight={1}>
 				<TicketList
 					stories={stories}
 					currentStoryId={currentStoryId}
-					maxHeight={maxLines}
+					maxHeight={effectiveMaxLines}
 				/>
 			</Box>
 
@@ -40,8 +56,9 @@ export default function MainLayout({
 					activeTab={activeTab}
 					outputLines={outputLines}
 					progressFilePath={progressFilePath}
-					maxLines={maxLines}
+					maxLines={effectiveMaxLines}
 					onTabChange={onTabChange}
+					contentWidth={rightPanelWidth}
 				/>
 			</Box>
 		</Box>

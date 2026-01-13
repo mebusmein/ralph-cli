@@ -2,16 +2,27 @@ import React, {useState, useEffect, useMemo} from 'react';
 import {Text, Box} from 'ink';
 import {readFileSync, watchFile, unwatchFile, existsSync} from 'node:fs';
 
+/**
+ * Calculate how many terminal rows a line will occupy when rendered
+ */
+function calculateRenderedRows(line: string, contentWidth: number): number {
+	if (contentWidth <= 0) return 1;
+	if (line.length === 0) return 1;
+	return Math.max(1, Math.ceil(line.length / contentWidth));
+}
+
 type Props = {
 	filePath: string;
 	maxLines?: number;
 	title?: string;
+	contentWidth?: number;
 };
 
 export default function ProgressLog({
 	filePath,
 	maxLines = 20,
 	title = 'Progress Log',
+	contentWidth = 80,
 }: Props) {
 	const [content, setContent] = useState<string>('');
 	const [error, setError] = useState<string | null>(null);
@@ -48,42 +59,68 @@ export default function ProgressLog({
 		};
 	}, [filePath]);
 
-	// Split content into lines and calculate visible portion
+	// Split content into lines and calculate visible portion (accounting for line wrapping)
 	const {visibleLines, scrollInfo} = useMemo(() => {
 		const lines = content.split('\n');
 
-		if (lines.length <= maxLines) {
+		if (lines.length === 0) {
 			return {
-				visibleLines: lines,
+				visibleLines: [],
 				scrollInfo: null,
 			};
 		}
 
-		// Show the last maxLines lines (auto-scroll to bottom)
-		const startIndex = lines.length - maxLines;
+		// Calculate how many terminal rows each line will take
+		const lineRowCounts = lines.map(line =>
+			calculateRenderedRows(line, contentWidth),
+		);
+
+		// Find the subset of lines that fit within maxLines terminal rows
+		// Start from the end (auto-scroll to latest)
+		let totalRows = 0;
+		let startIndex = lines.length;
+
+		for (let i = lines.length - 1; i >= 0; i--) {
+			const rowCount = lineRowCounts[i] ?? 1;
+			if (totalRows + rowCount > maxLines) {
+				break;
+			}
+
+			totalRows += rowCount;
+			startIndex = i;
+		}
+
 		const visibleLines = lines.slice(startIndex);
+		const hiddenAbove = startIndex;
 
 		return {
 			visibleLines,
-			scrollInfo: {
-				hiddenAbove: startIndex,
-				total: lines.length,
-			},
+			scrollInfo:
+				hiddenAbove > 0
+					? {
+							hiddenAbove,
+							total: lines.length,
+					  }
+					: null,
 		};
-	}, [content, maxLines]);
+	}, [content, maxLines, contentWidth]);
 
 	return (
-		<Box flexDirection="column" flexGrow={1}>
-			<Text bold color="cyan">
-				{title}
-			</Text>
+		<Box flexDirection="column" flexGrow={1} overflow="hidden">
+			{title && (
+				<Text bold color="cyan">
+					{title}
+				</Text>
+			)}
 			<Box
 				flexDirection="column"
-				marginTop={1}
+				marginTop={title ? 1 : 0}
 				borderStyle="single"
 				borderColor="gray"
 				paddingX={1}
 				flexGrow={1}
+				height={maxLines + 2}
+				overflow="hidden"
 			>
 				{error ? (
 					<Text color="yellow" dimColor>
@@ -103,7 +140,7 @@ export default function ProgressLog({
 							</Text>
 						) : (
 							visibleLines.map((line, index) => (
-								<Text key={`${index}-${line.slice(0, 20)}`} wrap="truncate">
+								<Text key={`${index}-${line.slice(0, 20)}`} wrap="wrap">
 									{line}
 								</Text>
 							))
