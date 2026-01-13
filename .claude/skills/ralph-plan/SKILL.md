@@ -46,21 +46,21 @@ Write to `.ralph/prd.json` using this format:
 
 ```json
 {
-  "branchName": "ralph/<feature-name>",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Short descriptive title",
-      "acceptanceCriteria": [
-        "Specific testable criterion",
-        "Another criterion",
-        "typecheck passes"
-      ],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }
-  ]
+	"branchName": "ralph/<feature-name>",
+	"userStories": [
+		{
+			"id": "US-001",
+			"title": "Short descriptive title",
+			"acceptanceCriteria": [
+				"Specific testable criterion",
+				"Another criterion",
+				"typecheck passes"
+			],
+			"priority": 1,
+			"passes": false,
+			"notes": ""
+		}
+	]
 }
 ```
 

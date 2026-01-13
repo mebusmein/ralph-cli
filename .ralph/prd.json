@@ -216,7 +216,7 @@
 				"typecheck passes"
 			],
 			"priority": 15,
-			"passes": false,
+			"passes": true,
 			"notes": ""
 		},
 		{
@@ -231,7 +231,7 @@
 				"typecheck passes"
 			],
 			"priority": 16,
-			"passes": false,
+			"passes": true,
 			"notes": ""
 		},
 		{
@@ -244,7 +244,7 @@
 				"typecheck passes"
 			],
 			"priority": 17,
-			"passes": false,
+			"passes": true,
 			"notes": ""
 		},
 		{
@@ -259,7 +259,7 @@
 				"typecheck passes"
 			],
 			"priority": 18,
-			"passes": false,
+			"passes": true,
 			"notes": ""
 		},
 		{
@@ -273,8 +273,42 @@
 				"typecheck passes"
 			],
 			"priority": 19,
-			"passes": false,
+			"passes": true,
 			"notes": ""
+		},
+		{
+			"id": "US-022",
+			"title": "Format Claude stream-json output for CLI display",
+			"acceptanceCriteria": [
+				"Parse top-level message types: system, assistant, user",
+				"Format assistant text content with proper styling",
+				"Format tool_use messages showing tool name and summarized input",
+				"Format tool_result messages with success/error indication",
+				"Handle nested content arrays in assistant messages",
+				"Extract and display cost/usage info from message metadata",
+				"Color coding: tool names in cyan, errors in red, success in green",
+				"Truncate long tool inputs/outputs with expandable indicator",
+				"typecheck passes"
+			],
+			"priority": 19,
+			"passes": true,
+			"notes": "Reference output.json for example format. Top-level types are assistant/user/system, with content arrays containing text/tool_use/tool_result items."
+		},
+		{
+			"id": "US-023",
+			"title": "Fix window growing beyond terminal size",
+			"acceptanceCriteria": [
+				"Use useStdout hook from Ink to get terminal dimensions (rows, columns)",
+				"Set fixed height on MainLayout based on terminal rows",
+				"OutputPanel and ProgressLog respect available height",
+				"Multi-line formatted output counts actual rendered rows not array length",
+				"Content scrolls within fixed viewport instead of growing",
+				"Handle terminal resize events",
+				"typecheck passes"
+			],
+			"priority": 19,
+			"passes": true,
+			"notes": "Bug: With multi-line formatted output (tool calls etc), each 'line' in the array can wrap to multiple terminal rows, causing the UI to grow beyond terminal height."
 		},
 		{
 			"id": "US-020",
@@ -283,12 +317,22 @@
 				"Update cli.tsx with proper argument handling",
 				"Support: ralph-cli (interactive mode)",
 				"Support: ralph-cli <number> (run N iterations)",
-				"Support: ralph-cli --single/-s (run 1 iteration)",
 				"Support: ralph-cli --help/-h",
 				"typecheck passes"
 			],
 			"priority": 20,
-			"passes": false,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-023",
+			"title": "Filter output panel to show mainly assistant messages with extra messages only for all messages after the latest assistant message",
+			"acceptanceCriteria": [
+				"Filter output panel to show mainly assistant messages with extra messages only for all messages after the latest assistant message",
+				"typecheck passes"
+			],
+			"priority": 19,
+			"passes": true,
 			"notes": ""
 		},
 		{
@@ -302,8 +346,74 @@
 				"typecheck passes"
 			],
 			"priority": 21,
-			"passes": false,
+			"passes": true,
 			"notes": ""
+		},
+		{
+			"id": "US-024",
+			"title": "Fix stop after iteration functionality",
+			"acceptanceCriteria": [
+				"Debug why abort signal is not stopping execution between iterations",
+				"Verify abortSignal.aborted check at top of iteration loop is working",
+				"Add separate 'stopAfterIteration' flag that doesn't kill current process",
+				"Pass stopAfterIteration flag to runIterations via options or separate signal",
+				"Check flag after each iterationComplete before starting next iteration",
+				"Current Claude execution should complete normally when flag is set",
+				"Show 'Stopping after this iteration...' message in footer when flag is set",
+				"Ctrl+C still aborts immediately (unchanged)",
+				"typecheck passes"
+			],
+			"priority": 22,
+			"passes": true,
+			"notes": "Bug: UI shows 'stopping after iteration' but execution continues to next iteration anyway. The isStopping state is set but runIterations doesn't receive this flag - it only gets the AbortSignal. Need separate mechanism to signal graceful stop vs immediate abort."
+		},
+		{
+			"id": "US-025",
+			"title": "Create story ID detector from AI output",
+			"acceptanceCriteria": [
+				"Create new source/lib/story-detector.ts module",
+				"Function detectStoryIdFromOutput(output: string) that returns story ID or null",
+				"Pattern matching for commit messages: feat: [US-XXX] or feat: US-XXX",
+				"Pattern matching for general story ID mentions: US-001, US-002, etc.",
+				"Prioritize commit message matches over general mentions",
+				"Return last matched ID if multiple found (most recent work)",
+				"Return null if no story ID found in output",
+				"typecheck passes"
+			],
+			"priority": 23,
+			"passes": true,
+			"notes": "Bug context: The prompt generator ignores the story argument (prompt-loader.ts:100-105), so the AI picks its own story from the PRD. The system then marks the wrong story as complete. This detector will parse AI output to find which story was actually worked on."
+		},
+		{
+			"id": "US-026",
+			"title": "Add raw output accumulation to stream formatter",
+			"acceptanceCriteria": [
+				"Add getRawTextContent() method to createFilteringStreamFormatter()",
+				"Accumulate all assistant text content (not tool calls) during processing",
+				"Strip ANSI codes from accumulated text for clean parsing",
+				"Include tool_use names and descriptions in raw output for context",
+				"Return concatenated string of all text content after execution",
+				"typecheck passes"
+			],
+			"priority": 24,
+			"passes": true,
+			"notes": "This provides the raw text output needed by story-detector to find which story the AI worked on."
+		},
+		{
+			"id": "US-027",
+			"title": "Update iteration executor to use detected story ID",
+			"acceptanceCriteria": [
+				"After Claude execution succeeds, call detectStoryIdFromOutput() with accumulated text",
+				"If story ID detected: use that ID to update PRD instead of pre-selected nextStory.id",
+				"If story ID detected differs from nextStory.id: log warning about mismatch",
+				"If no story ID detected: fall back to nextStory.id (current behavior) with warning",
+				"Emit storyComplete event with the detected/used story ID",
+				"Update UI to show detected story as in-progress when changed",
+				"typecheck passes"
+			],
+			"priority": 25,
+			"passes": true,
+			"notes": "This fixes the core bug: marking the story the AI actually worked on as complete, not the one the system pre-selected."
 		}
 	]
 }

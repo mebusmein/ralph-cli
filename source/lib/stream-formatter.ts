@@ -5,6 +5,8 @@
  * for display in a terminal interface.
  */
 
+import {stripAnsiCodes} from '../utils/text-utils.js';
+
 /**
  * ANSI color codes for terminal output
  */
@@ -13,7 +15,6 @@ const COLORS = {
 	cyan: '\x1b[36m',
 	red: '\x1b[31m',
 	green: '\x1b[32m',
-	yellow: '\x1b[33m',
 	gray: '\x1b[90m',
 	bold: '\x1b[1m',
 } as const;
@@ -22,18 +23,6 @@ const COLORS = {
  * Maximum length for tool input/output before truncation
  */
 const MAX_CONTENT_LENGTH = 200;
-
-/**
- * Regex pattern to strip ANSI escape codes
- */
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
-
-/**
- * Strip ANSI escape codes from a string
- */
-function stripAnsiCodes(text: string): string {
-	return text.replace(ANSI_PATTERN, '');
-}
 
 /**
  * Content types in assistant messages
@@ -169,20 +158,11 @@ function summarizeToolInput(input: Record<string, unknown>): string {
 }
 
 /**
- * Format a text content item
- */
-function formatTextContent(text: string): string {
-	return text;
-}
-
-/**
  * Format a tool_use content item
  */
 function formatToolUse(name: string, input: Record<string, unknown>): string {
 	const inputSummary = summarizeToolInput(input);
-	return `${COLORS.cyan}[${name}]${COLORS.reset} ${COLORS.gray}${truncate(
-		inputSummary,
-	)}${COLORS.reset}\n`;
+	return `${COLORS.cyan}[${name}]${COLORS.reset} ${COLORS.gray}${truncate(inputSummary)}${COLORS.reset}\n`;
 }
 
 /**
@@ -216,15 +196,13 @@ function formatToolResult(
 	}
 
 	const statusColor = actualIsError ? COLORS.red : COLORS.green;
-	const statusIcon = actualIsError ? '✗' : '✓';
+	const statusIcon = actualIsError ? '\u2717' : '\u2713';
 
 	if (!displayContent || displayContent.trim() === '') {
 		return `${statusColor}${statusIcon}${COLORS.reset}\n`;
 	}
 
-	return `${statusColor}${statusIcon}${COLORS.reset} ${COLORS.gray}${truncate(
-		displayContent,
-	)}${COLORS.reset}\n`;
+	return `${statusColor}${statusIcon}${COLORS.reset} ${COLORS.gray}${truncate(displayContent)}${COLORS.reset}\n`;
 }
 
 /**
@@ -238,7 +216,6 @@ function extractRawAssistantContent(message: AssistantMessage): string {
 		if (item.type === 'text') {
 			parts.push(item.text);
 		} else if (item.type === 'tool_use') {
-			// Include tool name and summarized input for context
 			const inputSummary = summarizeToolInput(item.input);
 			parts.push(`[${item.name}] ${inputSummary}`);
 		}
@@ -255,7 +232,7 @@ function formatAssistantMessage(message: AssistantMessage): string {
 
 	for (const item of message.message.content) {
 		if (item.type === 'text') {
-			parts.push(formatTextContent(item.text));
+			parts.push(item.text);
 		} else if (item.type === 'tool_use') {
 			parts.push(formatToolUse(item.name, item.input));
 		}
@@ -294,7 +271,7 @@ function formatResultMessage(message: ResultMessage): string {
 	const status = message.is_error ? 'Error' : 'Completed';
 	const statusColor = message.is_error ? COLORS.red : COLORS.green;
 
-	parts.push(`\n${COLORS.bold}━━━ ${statusColor}${status}${COLORS.reset}`);
+	parts.push(`\n${COLORS.bold}\u2501\u2501\u2501 ${statusColor}${status}${COLORS.reset}`);
 
 	if (message.duration_ms !== undefined) {
 		const seconds = Math.floor(message.duration_ms / 1000);
@@ -306,31 +283,15 @@ function formatResultMessage(message: ResultMessage): string {
 		parts.push(` ${COLORS.gray}($${cost})${COLORS.reset}`);
 	}
 
-	parts.push(` ${COLORS.bold}━━━${COLORS.reset}\n`);
+	parts.push(` ${COLORS.bold}\u2501\u2501\u2501${COLORS.reset}\n`);
 
 	return parts.join('');
 }
 
 /**
- * Parse and format a single line of stream-json output
- *
- * @param line - A single line of JSON from the stream
- * @returns Formatted string for display, or null if the line should be filtered out
- */
-export function formatStreamLine(line: string): string | null {
-	const result = formatStreamLineWithSource(line);
-	return result?.content ?? null;
-}
-
-/**
  * Parse and format a single line of stream-json output with source information
- *
- * @param line - A single line of JSON from the stream
- * @returns FormattedOutput with source and content, or null if the line should be filtered out
  */
-export function formatStreamLineWithSource(
-	line: string,
-): FormattedOutput | null {
+function formatStreamLineWithSource(line: string): FormattedOutput | null {
 	const trimmedLine = line.trim();
 
 	if (!trimmedLine) {
@@ -341,7 +302,6 @@ export function formatStreamLineWithSource(
 	try {
 		message = JSON.parse(trimmedLine) as StreamMessage;
 	} catch {
-		// Not valid JSON, skip
 		return null;
 	}
 
@@ -362,178 +322,11 @@ export function formatStreamLineWithSource(
 		}
 
 		case 'system':
-			// Filter out system messages (init, etc.)
 			return null;
 
 		default:
 			return null;
 	}
-}
-
-/**
- * Creates a streaming formatter that processes chunks and accumulates output
- *
- * @returns Object with methods to process chunks and get accumulated formatted output
- */
-export function createStreamFormatter(): {
-	processChunk: (chunk: string) => string;
-	getAccumulatedOutput: () => string;
-} {
-	let accumulatedOutput = '';
-	let incompleteLineBuffer = '';
-
-	return {
-		/**
-		 * Process a chunk of stream data and return formatted output
-		 */
-		processChunk(chunk: string): string {
-			// Prepend any incomplete line from the previous chunk
-			const fullChunk = incompleteLineBuffer + chunk;
-			incompleteLineBuffer = '';
-
-			const lines = fullChunk.split('\n');
-
-			// Check if the last line is incomplete (no newline at end)
-			if (!chunk.endsWith('\n') && lines.length > 0) {
-				incompleteLineBuffer = lines.pop() ?? '';
-			}
-
-			const formattedParts: string[] = [];
-
-			for (const line of lines) {
-				const formatted = formatStreamLine(line);
-				if (formatted !== null) {
-					formattedParts.push(formatted);
-				}
-			}
-
-			const formattedText = formattedParts.join('');
-			accumulatedOutput += formattedText;
-			return formattedText;
-		},
-
-		/**
-		 * Get all accumulated formatted output
-		 */
-		getAccumulatedOutput(): string {
-			// Process any remaining incomplete line
-			if (incompleteLineBuffer) {
-				const formatted = formatStreamLine(incompleteLineBuffer);
-				if (formatted !== null) {
-					accumulatedOutput += formatted;
-				}
-				incompleteLineBuffer = '';
-			}
-
-			return accumulatedOutput;
-		},
-	};
-}
-
-/**
- * Creates a filtering stream formatter that tracks message sources and filters output
- * Shows only assistant messages, plus user/tool_result messages after the latest assistant message
- *
- * @returns Object with methods to process chunks, get filtered output, and get raw text content
- */
-export function createFilteringStreamFormatter(): {
-	processChunk: (chunk: string) => FormattedOutput[];
-	getFilteredOutput: () => FormattedOutput[];
-	getRawTextContent: () => string;
-} {
-	const allMessages: FormattedOutput[] = [];
-	const rawTextParts: string[] = [];
-	let incompleteLineBuffer = '';
-
-	/**
-	 * Process a line and accumulate raw text content from assistant messages
-	 */
-	function processLineForRawContent(line: string): void {
-		const trimmedLine = line.trim();
-		if (!trimmedLine) return;
-
-		let message: StreamMessage;
-		try {
-			message = JSON.parse(trimmedLine) as StreamMessage;
-		} catch {
-			return;
-		}
-
-		// Only accumulate raw content from assistant messages
-		if (message.type === 'assistant') {
-			const rawContent = extractRawAssistantContent(message);
-			if (rawContent) {
-				rawTextParts.push(rawContent);
-			}
-		}
-	}
-
-	return {
-		/**
-		 * Process a chunk of stream data and return filtered formatted outputs
-		 */
-		processChunk(chunk: string): FormattedOutput[] {
-			// Prepend any incomplete line from the previous chunk
-			const fullChunk = incompleteLineBuffer + chunk;
-			incompleteLineBuffer = '';
-
-			const lines = fullChunk.split('\n');
-
-			// Check if the last line is incomplete (no newline at end)
-			if (!chunk.endsWith('\n') && lines.length > 0) {
-				incompleteLineBuffer = lines.pop() ?? '';
-			}
-
-			const newMessages: FormattedOutput[] = [];
-
-			for (const line of lines) {
-				// Accumulate raw text content for story detection
-				processLineForRawContent(line);
-
-				const formatted = formatStreamLineWithSource(line);
-				if (formatted !== null) {
-					allMessages.push(formatted);
-					newMessages.push(formatted);
-				}
-			}
-
-			// Return filtered messages for display
-			return filterMessagesForDisplay(allMessages);
-		},
-
-		/**
-		 * Get all filtered formatted output
-		 */
-		getFilteredOutput(): FormattedOutput[] {
-			// Process any remaining incomplete line
-			if (incompleteLineBuffer) {
-				processLineForRawContent(incompleteLineBuffer);
-
-				const formatted = formatStreamLineWithSource(incompleteLineBuffer);
-				if (formatted !== null) {
-					allMessages.push(formatted);
-				}
-				incompleteLineBuffer = '';
-			}
-
-			return filterMessagesForDisplay(allMessages);
-		},
-
-		/**
-		 * Get concatenated raw text content from all assistant messages
-		 * Useful for parsing to detect story IDs and other patterns
-		 * ANSI codes are stripped for clean text parsing
-		 */
-		getRawTextContent(): string {
-			// Process any remaining incomplete line first
-			if (incompleteLineBuffer) {
-				processLineForRawContent(incompleteLineBuffer);
-			}
-
-			// Join all parts and strip any ANSI codes that might have slipped through
-			return stripAnsiCodes(rawTextParts.join('\n'));
-		},
-	};
 }
 
 /**
@@ -543,9 +336,6 @@ export function createFilteringStreamFormatter(): {
  * 1. Find the index of the last assistant message
  * 2. Include all assistant messages
  * 3. Include all messages (user/tool_result) that come after the last assistant message
- *
- * This way, the user sees all assistant output, plus the current "live" tool results
- * that are happening in response to the latest assistant action.
  */
 export function filterMessagesForDisplay(
 	messages: FormattedOutput[],
@@ -563,7 +353,7 @@ export function filterMessagesForDisplay(
 		}
 	}
 
-	// If no assistant messages, return all messages (might be early in stream)
+	// If no assistant messages, return all messages
 	if (lastAssistantIndex === -1) {
 		return messages;
 	}
@@ -574,8 +364,6 @@ export function filterMessagesForDisplay(
 		const message = messages[i];
 		if (!message) continue;
 
-		// Include if it's an assistant message OR if it comes after the last assistant message
-		// Also always include 'result' type (completion summary)
 		if (
 			message.source === 'assistant' ||
 			message.source === 'result' ||
@@ -586,4 +374,86 @@ export function filterMessagesForDisplay(
 	}
 
 	return filtered;
+}
+
+/**
+ * Creates a stream formatter that processes chunks, accumulates output,
+ * and provides filtered display along with raw text content for parsing
+ */
+export function createStreamFormatter(): {
+	processChunk: (chunk: string) => FormattedOutput[];
+	getFilteredOutput: () => FormattedOutput[];
+	getRawTextContent: () => string;
+} {
+	const allMessages: FormattedOutput[] = [];
+	const rawTextParts: string[] = [];
+	let incompleteLineBuffer = '';
+
+	function processLineForRawContent(line: string): void {
+		const trimmedLine = line.trim();
+		if (!trimmedLine) return;
+
+		let message: StreamMessage;
+		try {
+			message = JSON.parse(trimmedLine) as StreamMessage;
+		} catch {
+			return;
+		}
+
+		if (message.type === 'assistant') {
+			const rawContent = extractRawAssistantContent(message);
+			if (rawContent) {
+				rawTextParts.push(rawContent);
+			}
+		}
+	}
+
+	return {
+		processChunk(chunk: string): FormattedOutput[] {
+			const fullChunk = incompleteLineBuffer + chunk;
+			incompleteLineBuffer = '';
+
+			const lines = fullChunk.split('\n');
+
+			if (!chunk.endsWith('\n') && lines.length > 0) {
+				incompleteLineBuffer = lines.pop() ?? '';
+			}
+
+			const newMessages: FormattedOutput[] = [];
+
+			for (const line of lines) {
+				processLineForRawContent(line);
+
+				const formatted = formatStreamLineWithSource(line);
+				if (formatted !== null) {
+					allMessages.push(formatted);
+					newMessages.push(formatted);
+				}
+			}
+
+			return filterMessagesForDisplay(allMessages);
+		},
+
+		getFilteredOutput(): FormattedOutput[] {
+			if (incompleteLineBuffer) {
+				processLineForRawContent(incompleteLineBuffer);
+
+				const formatted = formatStreamLineWithSource(incompleteLineBuffer);
+				if (formatted !== null) {
+					allMessages.push(formatted);
+				}
+				incompleteLineBuffer = '';
+			}
+
+			return filterMessagesForDisplay(allMessages);
+		},
+
+		getRawTextContent(): string {
+			if (incompleteLineBuffer) {
+				processLineForRawContent(incompleteLineBuffer);
+			}
+
+			return stripAnsiCodes(rawTextParts.join('\n'));
+		},
+	};
 }

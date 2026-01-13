@@ -6,7 +6,7 @@ import {readPRDFile} from './prd-reader.js';
 import {updateStoryStatus} from './prd-writer.js';
 import {detectStoryIdFromOutput} from './story-detector.js';
 import {
-	createFilteringStreamFormatter,
+	createStreamFormatter,
 	type FormattedOutput,
 } from './stream-formatter.js';
 
@@ -181,8 +181,8 @@ export async function runIterations(
 		// Generate prompt and execute Claude
 		const prompt = promptGenerator(nextStory);
 
-		// Create a filtering stream formatter for this iteration
-		const streamFormatter = createFilteringStreamFormatter();
+		// Create stream formatter for this iteration
+		const streamFormatter = createStreamFormatter();
 
 		const result = await executeClaudeCommand({
 			prompt,

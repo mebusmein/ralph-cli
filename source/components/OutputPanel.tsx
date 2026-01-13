@@ -1,17 +1,6 @@
 import React, {useMemo} from 'react';
 import {Text, Box} from 'ink';
-
-/**
- * Calculate how many terminal rows a line will occupy when rendered
- * Each line wraps based on content width
- */
-function calculateRenderedRows(line: string, contentWidth: number): number {
-	if (contentWidth <= 0) return 1;
-	if (line.length === 0) return 1;
-	// Strip ANSI codes for accurate length calculation
-	const strippedLine = line.replaceAll(/\x1b\[[0-9;]*m/g, '');
-	return Math.max(1, Math.ceil(strippedLine.length / contentWidth));
-}
+import {calculateVisibleLines} from '../utils/text-utils.js';
 
 type Props = {
 	lines: string[];
@@ -25,50 +14,11 @@ export default function OutputPanel({
 	maxLines = 20,
 	title = 'Output',
 	contentWidth = 80,
-}: Props) {
-	// Calculate visible lines based on actual rendered rows (accounting for line wrapping)
-	const {visibleLines, scrollInfo} = useMemo(() => {
-		if (lines.length === 0) {
-			return {
-				visibleLines: [],
-				scrollInfo: null,
-			};
-		}
-
-		// Calculate how many terminal rows each line will take
-		const lineRowCounts = lines.map(line =>
-			calculateRenderedRows(line, contentWidth),
-		);
-
-		// Find the subset of lines that fit within maxLines terminal rows
-		// Start from the end (auto-scroll to latest)
-		let totalRows = 0;
-		let startIndex = lines.length;
-
-		for (let i = lines.length - 1; i >= 0; i--) {
-			const rowCount = lineRowCounts[i] ?? 1;
-			if (totalRows + rowCount > maxLines) {
-				break;
-			}
-
-			totalRows += rowCount;
-			startIndex = i;
-		}
-
-		const visibleLines = lines.slice(startIndex);
-		const hiddenAbove = startIndex;
-
-		return {
-			visibleLines,
-			scrollInfo:
-				hiddenAbove > 0
-					? {
-							hiddenAbove,
-							total: lines.length,
-					  }
-					: null,
-		};
-	}, [lines, maxLines, contentWidth]);
+}: Props): React.ReactElement {
+	const {visibleLines, scrollInfo} = useMemo(
+		() => calculateVisibleLines(lines, maxLines, contentWidth, true),
+		[lines, maxLines, contentWidth],
+	);
 
 	return (
 		<Box flexDirection="column" flexGrow={1} overflow="hidden">
@@ -89,7 +39,7 @@ export default function OutputPanel({
 			>
 				{scrollInfo && scrollInfo.hiddenAbove > 0 && (
 					<Text color="gray" dimColor>
-						↑ {scrollInfo.hiddenAbove} lines above
+						{'\u2191'} {scrollInfo.hiddenAbove} lines above
 					</Text>
 				)}
 				{visibleLines.length === 0 ? (

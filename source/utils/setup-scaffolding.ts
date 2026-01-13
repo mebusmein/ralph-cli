@@ -28,6 +28,40 @@ function ensureDirectory(dirPath: string): void {
 }
 
 /**
+ * Create a file with content if it doesn't already exist
+ * Idempotent: safe to run multiple times
+ */
+function createFileIfNotExists(
+	filePath: string,
+	content: string,
+): ScaffoldResult {
+	try {
+		if (existsSync(filePath)) {
+			return {
+				success: true,
+				created: false,
+				path: filePath,
+			};
+		}
+
+		ensureDirectory(dirname(filePath));
+		writeFileSync(filePath, content, 'utf8');
+		return {
+			success: true,
+			created: true,
+			path: filePath,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			created: false,
+			path: filePath,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+/**
  * Create the .ralph directory
  * Idempotent: safe to run multiple times
  */
@@ -62,31 +96,7 @@ export function createPromptTemplate(
 	cwd: string = process.cwd(),
 ): ScaffoldResult {
 	const paths = getRalphPaths(cwd);
-
-	try {
-		if (existsSync(paths.promptFile)) {
-			return {
-				success: true,
-				created: false,
-				path: paths.promptFile,
-			};
-		}
-
-		ensureDirectory(dirname(paths.promptFile));
-		writeFileSync(paths.promptFile, DEFAULT_PROMPT_TEMPLATE, 'utf8');
-		return {
-			success: true,
-			created: true,
-			path: paths.promptFile,
-		};
-	} catch (error) {
-		return {
-			success: false,
-			created: false,
-			path: paths.promptFile,
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
+	return createFileIfNotExists(paths.promptFile, DEFAULT_PROMPT_TEMPLATE);
 }
 
 /**
@@ -95,31 +105,7 @@ export function createPromptTemplate(
  */
 export function createPrdTemplate(cwd: string = process.cwd()): ScaffoldResult {
 	const paths = getRalphPaths(cwd);
-
-	try {
-		if (existsSync(paths.prdFile)) {
-			return {
-				success: true,
-				created: false,
-				path: paths.prdFile,
-			};
-		}
-
-		ensureDirectory(dirname(paths.prdFile));
-		writeFileSync(paths.prdFile, DEFAULT_PRD_TEMPLATE, 'utf8');
-		return {
-			success: true,
-			created: true,
-			path: paths.prdFile,
-		};
-	} catch (error) {
-		return {
-			success: false,
-			created: false,
-			path: paths.prdFile,
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
+	return createFileIfNotExists(paths.prdFile, DEFAULT_PRD_TEMPLATE);
 }
 
 /**
@@ -130,31 +116,7 @@ export function createProgressTemplate(
 	cwd: string = process.cwd(),
 ): ScaffoldResult {
 	const paths = getRalphPaths(cwd);
-
-	try {
-		if (existsSync(paths.progressFile)) {
-			return {
-				success: true,
-				created: false,
-				path: paths.progressFile,
-			};
-		}
-
-		ensureDirectory(dirname(paths.progressFile));
-		writeFileSync(paths.progressFile, getProgressTemplate(), 'utf8');
-		return {
-			success: true,
-			created: true,
-			path: paths.progressFile,
-		};
-	} catch (error) {
-		return {
-			success: false,
-			created: false,
-			path: paths.progressFile,
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
+	return createFileIfNotExists(paths.progressFile, getProgressTemplate());
 }
 
 /**
@@ -165,32 +127,7 @@ export function installRalphPlanSkill(
 	cwd: string = process.cwd(),
 ): ScaffoldResult {
 	const paths = getRalphPaths(cwd);
-	const skillDir = dirname(paths.ralphPlanSkill);
-
-	try {
-		if (existsSync(paths.ralphPlanSkill)) {
-			return {
-				success: true,
-				created: false,
-				path: paths.ralphPlanSkill,
-			};
-		}
-
-		ensureDirectory(skillDir);
-		writeFileSync(paths.ralphPlanSkill, DEFAULT_RALPH_PLAN_SKILL, 'utf8');
-		return {
-			success: true,
-			created: true,
-			path: paths.ralphPlanSkill,
-		};
-	} catch (error) {
-		return {
-			success: false,
-			created: false,
-			path: paths.ralphPlanSkill,
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
+	return createFileIfNotExists(paths.ralphPlanSkill, DEFAULT_RALPH_PLAN_SKILL);
 }
 
 /**

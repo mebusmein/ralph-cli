@@ -1,15 +1,7 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {Text, Box} from 'ink';
 import {readFileSync, watchFile, unwatchFile, existsSync} from 'node:fs';
-
-/**
- * Calculate how many terminal rows a line will occupy when rendered
- */
-function calculateRenderedRows(line: string, contentWidth: number): number {
-	if (contentWidth <= 0) return 1;
-	if (line.length === 0) return 1;
-	return Math.max(1, Math.ceil(line.length / contentWidth));
-}
+import {calculateVisibleLines} from '../utils/text-utils.js';
 
 type Props = {
 	filePath: string;
@@ -23,13 +15,13 @@ export default function ProgressLog({
 	maxLines = 20,
 	title = 'Progress Log',
 	contentWidth = 80,
-}: Props) {
+}: Props): React.ReactElement {
 	const [content, setContent] = useState<string>('');
 	const [error, setError] = useState<string | null>(null);
 
 	// Read file and set up watcher
 	useEffect(() => {
-		const readFile = () => {
+		function readFile(): void {
 			if (!existsSync(filePath)) {
 				setError('Progress file not found');
 				setContent('');
@@ -43,7 +35,7 @@ export default function ProgressLog({
 			} catch {
 				setError('Failed to read progress file');
 			}
-		};
+		}
 
 		// Initial read
 		readFile();
@@ -59,51 +51,15 @@ export default function ProgressLog({
 		};
 	}, [filePath]);
 
-	// Split content into lines and calculate visible portion (accounting for line wrapping)
+	// Split content into lines and calculate visible portion
 	const {visibleLines, scrollInfo} = useMemo(() => {
 		const lines = content.split('\n');
-
-		if (lines.length === 0) {
-			return {
-				visibleLines: [],
-				scrollInfo: null,
-			};
-		}
-
-		// Calculate how many terminal rows each line will take
-		const lineRowCounts = lines.map(line =>
-			calculateRenderedRows(line, contentWidth),
-		);
-
-		// Find the subset of lines that fit within maxLines terminal rows
-		// Start from the end (auto-scroll to latest)
-		let totalRows = 0;
-		let startIndex = lines.length;
-
-		for (let i = lines.length - 1; i >= 0; i--) {
-			const rowCount = lineRowCounts[i] ?? 1;
-			if (totalRows + rowCount > maxLines) {
-				break;
-			}
-
-			totalRows += rowCount;
-			startIndex = i;
-		}
-
-		const visibleLines = lines.slice(startIndex);
-		const hiddenAbove = startIndex;
-
-		return {
-			visibleLines,
-			scrollInfo:
-				hiddenAbove > 0
-					? {
-							hiddenAbove,
-							total: lines.length,
-					  }
-					: null,
-		};
+		return calculateVisibleLines(lines, maxLines, contentWidth, false);
 	}, [content, maxLines, contentWidth]);
+
+	const isEmpty =
+		visibleLines.length === 0 ||
+		(visibleLines.length === 1 && visibleLines[0] === '');
 
 	return (
 		<Box flexDirection="column" flexGrow={1} overflow="hidden">
@@ -130,11 +86,10 @@ export default function ProgressLog({
 					<>
 						{scrollInfo && scrollInfo.hiddenAbove > 0 && (
 							<Text color="gray" dimColor>
-								↑ {scrollInfo.hiddenAbove} lines above
+								{'\u2191'} {scrollInfo.hiddenAbove} lines above
 							</Text>
 						)}
-						{visibleLines.length === 0 ||
-						(visibleLines.length === 1 && visibleLines[0] === '') ? (
+						{isEmpty ? (
 							<Text color="gray" dimColor>
 								No progress yet...
 							</Text>

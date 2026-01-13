@@ -26,11 +26,29 @@ type Props = {
 	onComplete: (hasPrd: boolean) => void;
 };
 
-function StatusIcon({exists}: {exists: boolean}) {
-	return exists ? <Text color="green">[*]</Text> : <Text color="red">[ ]</Text>;
+/**
+ * Configuration for scaffold items to display
+ */
+const SCAFFOLD_ITEMS: Array<{key: keyof ScaffoldingStatus; name: string}> = [
+	{key: 'ralphDir', name: '.ralph directory'},
+	{key: 'promptFile', name: 'prompt.txt'},
+	{key: 'prdFile', name: 'prd.json'},
+	{key: 'progressFile', name: 'progress.txt'},
+	{key: 'ralphPlanSkill', name: 'ralph-plan skill'},
+];
+
+function StatusIcon({exists}: {exists: boolean}): React.ReactElement {
+	if (exists) {
+		return <Text color="green">[*]</Text>;
+	}
+	return <Text color="red">[ ]</Text>;
 }
 
-function ScaffoldStatusIcon({result}: {result?: ScaffoldResult}) {
+function ScaffoldStatusIcon({
+	result,
+}: {
+	result?: ScaffoldResult;
+}): React.ReactElement {
 	if (!result) {
 		return <Text color="gray">[.]</Text>;
 	}
@@ -46,7 +64,7 @@ function ScaffoldStatusIcon({result}: {result?: ScaffoldResult}) {
 	return <Text color="yellow">[=]</Text>;
 }
 
-function ChecklistItem({item}: {item: SetupCheckItem}) {
+function ChecklistItem({item}: {item: SetupCheckItem}): React.ReactElement {
 	return (
 		<Box>
 			<StatusIcon exists={item.exists} />
@@ -55,7 +73,13 @@ function ChecklistItem({item}: {item: SetupCheckItem}) {
 	);
 }
 
-function ScaffoldItem({name, result}: {name: string; result?: ScaffoldResult}) {
+function ScaffoldItem({
+	name,
+	result,
+}: {
+	name: string;
+	result?: ScaffoldResult;
+}): React.ReactElement {
 	let statusText = '';
 	if (result) {
 		if (!result.success) {
@@ -78,7 +102,24 @@ function ScaffoldItem({name, result}: {name: string; result?: ScaffoldResult}) {
 	);
 }
 
-export default function SetupWizard({cwd = process.cwd(), onComplete}: Props) {
+function ScaffoldItemList({
+	status,
+}: {
+	status: ScaffoldingStatus;
+}): React.ReactElement {
+	return (
+		<Box flexDirection="column" marginLeft={2} marginY={1}>
+			{SCAFFOLD_ITEMS.map(({key, name}) => (
+				<ScaffoldItem key={key} name={name} result={status[key]} />
+			))}
+		</Box>
+	);
+}
+
+export default function SetupWizard({
+	cwd = process.cwd(),
+	onComplete,
+}: Props): React.ReactElement | null {
 	const {exit} = useApp();
 	const [step, setStep] = useState<SetupStep>('checking');
 	const [checkResult, setCheckResult] = useState<SetupCheckResult | null>(null);
@@ -91,10 +132,8 @@ export default function SetupWizard({cwd = process.cwd(), onComplete}: Props) {
 		setCheckResult(result);
 
 		if (result.isComplete) {
-			// All setup is complete, check if PRD has stories
 			setStep('complete');
 		} else {
-			// Need to prompt for setup
 			setStep('prompt');
 		}
 	}, [cwd]);
@@ -150,7 +189,6 @@ export default function SetupWizard({cwd = process.cwd(), onComplete}: Props) {
 			}
 		} else if (step === 'complete') {
 			if (key.return || input.toLowerCase() === 'c') {
-				// Check if prd.json exists and has stories
 				const result = checkSetup(cwd);
 				const prdItem = result.items.find(item => item.name === 'prd.json');
 				onComplete(prdItem?.exists ?? false);
@@ -204,22 +242,7 @@ export default function SetupWizard({cwd = process.cwd(), onComplete}: Props) {
 				</Text>
 				<Text> </Text>
 				<Text>Setting up Ralph...</Text>
-				<Box flexDirection="column" marginLeft={2} marginY={1}>
-					<ScaffoldItem
-						name=".ralph directory"
-						result={scaffoldStatus.ralphDir}
-					/>
-					<ScaffoldItem name="prompt.txt" result={scaffoldStatus.promptFile} />
-					<ScaffoldItem name="prd.json" result={scaffoldStatus.prdFile} />
-					<ScaffoldItem
-						name="progress.txt"
-						result={scaffoldStatus.progressFile}
-					/>
-					<ScaffoldItem
-						name="ralph-plan skill"
-						result={scaffoldStatus.ralphPlanSkill}
-					/>
-				</Box>
+				<ScaffoldItemList status={scaffoldStatus} />
 			</Box>
 		);
 	}
@@ -235,25 +258,7 @@ export default function SetupWizard({cwd = process.cwd(), onComplete}: Props) {
 				{wasSetupRun ? (
 					<>
 						<Text color="green">Setup complete!</Text>
-						<Box flexDirection="column" marginLeft={2} marginY={1}>
-							<ScaffoldItem
-								name=".ralph directory"
-								result={scaffoldStatus.ralphDir}
-							/>
-							<ScaffoldItem
-								name="prompt.txt"
-								result={scaffoldStatus.promptFile}
-							/>
-							<ScaffoldItem name="prd.json" result={scaffoldStatus.prdFile} />
-							<ScaffoldItem
-								name="progress.txt"
-								result={scaffoldStatus.progressFile}
-							/>
-							<ScaffoldItem
-								name="ralph-plan skill"
-								result={scaffoldStatus.ralphPlanSkill}
-							/>
-						</Box>
+						<ScaffoldItemList status={scaffoldStatus} />
 						<Text> </Text>
 						<Text>Next steps:</Text>
 						<Text color="gray">
@@ -280,22 +285,7 @@ export default function SetupWizard({cwd = process.cwd(), onComplete}: Props) {
 				<Text> </Text>
 				<Text color="red">Setup failed!</Text>
 				{errorMessage && <Text color="red">{errorMessage}</Text>}
-				<Box flexDirection="column" marginLeft={2} marginY={1}>
-					<ScaffoldItem
-						name=".ralph directory"
-						result={scaffoldStatus.ralphDir}
-					/>
-					<ScaffoldItem name="prompt.txt" result={scaffoldStatus.promptFile} />
-					<ScaffoldItem name="prd.json" result={scaffoldStatus.prdFile} />
-					<ScaffoldItem
-						name="progress.txt"
-						result={scaffoldStatus.progressFile}
-					/>
-					<ScaffoldItem
-						name="ralph-plan skill"
-						result={scaffoldStatus.ralphPlanSkill}
-					/>
-				</Box>
+				<ScaffoldItemList status={scaffoldStatus} />
 				<Text> </Text>
 				<Text color="gray">Press Enter to exit</Text>
 			</Box>

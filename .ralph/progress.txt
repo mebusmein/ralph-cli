@@ -217,3 +217,212 @@ Started: 2026-01-13
   - Show cursor position with `{input || '_'}` pattern for empty state visibility
   - Keep validation messages in separate error state for clear conditional rendering
 ---
+
+## 2026-01-13 - US-015
+- What was implemented: Iteration execution loop for running multiple Claude iterations
+- Files changed:
+  - source/lib/iteration-executor.ts - Main executor with runIterations(), findNextIncompleteStory(), getStoriesWithStatus()
+  - source/lib/index.ts - Added barrel export for iteration-executor
+- **Learnings:**
+  - Use `EventEmitter<T>` generic from `node:events` for typed event emitters in Node.js
+  - Re-read PRD file at start of each iteration to get latest state (not just at start of loop)
+  - Sort stories by priority after filtering to ensure highest priority incomplete is selected
+  - EventEmitter pattern works well for decoupling execution logic from UI updates
+  - Use `AbortSignal` for cancellation - check `signal?.aborted` before starting and pass to subprocess
+  - Continue to next iteration even on error (unless aborted) for resilience
+---
+
+## 2026-01-13 - US-016
+- What was implemented: Keyboard controls hook and footer component for main application
+- Files changed:
+  - source/hooks/useKeyboardControls.ts - Custom hook for keyboard handling with Tab, Ctrl+C, Ctrl+X, and 'q' keys
+  - source/hooks/index.ts - Barrel export for hooks directory
+  - source/components/KeyboardHelpFooter.tsx - Footer component showing keybinding help
+  - source/components/index.ts - Added barrel export for KeyboardHelpFooter
+- **Learnings:**
+  - Ink's `useInput` hook accepts an options object with `isActive` for conditionally enabling input handling
+  - Use `useApp()` hook to get the `exit()` function for immediate app termination
+  - Export constants (KEYBOARD_HELP) alongside hooks for consistent help text across components
+  - The xo linter bug with `unicorn/expiring-todo-comments` is still present; typecheck is the reliable verification
+  - Separate callbacks for immediate cancel vs stop-after-iteration allows graceful shutdown handling
+  - Custom hooks can import from component barrel exports (`../components/TabPanel.js`) for type reuse
+---
+
+## 2026-01-13 - US-017
+- What was implemented: Prompt template loader with file loading and variable expansion
+- Files changed:
+  - source/lib/prompt-loader.ts - Main loader with loadPromptTemplate(), expandPromptVariables(), createPromptGenerator()
+  - source/lib/index.ts - Added barrel export for prompt-loader
+- **Learnings:**
+  - Use `replaceAll()` for variable expansion (cleaner than chained `replace()` calls)
+  - Return a result object with `source: 'file' | 'default'` to indicate where prompt came from
+  - Factory function `createPromptGenerator()` provides integration point with iteration-executor
+  - The default prompt template was already defined in setup-scaffolding.ts - duplicated here for fallback behavior
+  - Empty `catch {}` block silently falls through to default on read error
+---
+
+## 2026-01-13 - US-018
+- What was implemented: Full App component integration orchestrating setup, PRD loading, iteration execution, and UI state
+- Files changed:
+  - source/app.tsx - Complete rewrite with view-based state machine (setup, no-prd, iteration-prompt, running, complete)
+  - source/cli.tsx - Updated to support positional iterations argument and new App props
+  - test.ts - Updated tests to match new App behavior (renamed from .tsx to .ts)
+- **Learnings:**
+  - Use `useRef<AbortController | null>` to hold the abort controller reference for cancellation across renders
+  - View-based state machine pattern (AppView type) cleanly separates UI states
+  - EventEmitter pattern from iteration-executor integrates well with React state updates via `.on()` listeners
+  - The `useCallback` hook with proper dependency arrays is essential for memoizing handlers that use state
+  - Initial setup check should run in `useEffect` to properly handle SSR and re-renders
+  - Test file extension matters: AVA + ts-node has issues with Node.js v24 - the xo linter bug extends to test infrastructure
+  - Typecheck (`tsc --noEmit`) is the reliable verification when linter has bugs
+---
+
+## 2026-01-13 - US-019
+- What was implemented: Bundled default templates module for runtime access
+- Files changed:
+  - source/templates/index.ts - New module exporting all default templates
+  - source/utils/setup-scaffolding.ts - Refactored to import from templates module
+  - source/lib/prompt-loader.ts - Refactored to import from templates module
+- **Learnings:**
+  - Create a centralized templates module to avoid duplication across files
+  - Use `{{DATE}}` placeholder pattern with a factory function (`getProgressTemplate()`) for dynamic content
+  - Export both individual templates and a convenience `templates` object for different import styles
+  - Keep template strings as named exports for tree-shaking and explicit imports
+  - The `as const` assertion on the templates object provides readonly type safety
+---
+
+## 2026-01-13 - US-022
+- What was implemented: Stream formatter for Claude's stream-json CLI output
+- Files changed:
+  - source/lib/stream-formatter.ts - New module for parsing and formatting stream-json output
+  - source/lib/index.ts - Added barrel export for stream-formatter
+  - source/lib/iteration-executor.ts - Integrated stream formatter into execution loop
+- **Learnings:**
+  - Claude's stream-json format has top-level types: `system`, `assistant`, `user`, `result`
+  - `assistant` messages have `content` arrays with `text` or `tool_use` items
+  - `user` messages have `content` arrays with `tool_result` items
+  - Use ANSI escape codes for terminal colors: `\x1b[36m` for cyan, `\x1b[31m` for red, `\x1b[32m` for green, `\x1b[0m` for reset
+  - Keep a constants object for colors to avoid magic strings throughout the code
+  - Use `as const` on the COLORS object for TypeScript string literal types
+  - Truncation with `[truncated]` indicator helps keep output readable
+  - The formatter returns `null` for filtered lines, allowing easy skipping of system messages
+  - Process chunks with line buffering to handle JSON split across chunks
+---
+
+## 2026-01-13 - US-020
+- What was implemented: CLI entry point with proper argument handling
+- Files changed:
+  - source/cli.tsx - Added help text, -h handling, input validation, --log-file flag
+  - source/app.tsx - Added logFile prop support
+  - source/lib/claude-executor.ts - Added log file writing capability
+  - source/types/config.ts - Added logFile to ClaudeExecutionOptions
+  - source/utils/setup-checker.ts - Fixed ralph-plan skill path
+- **Learnings:**
+  - meow's `autoHelp` only handles `--help`, not `-h` - need manual handling for short flag
+  - Use `Number.parseInt()` instead of `parseInt()` for stricter ES6 compliance
+  - Input validation should provide clear error messages with the invalid value shown
+  - Use `createWriteStream` with `{flags: 'a'}` for append mode when logging to files
+  - The xo linter has a persistent bug with `unicorn/expiring-todo-comments` - typecheck is the reliable verification
+---
+
+## 2026-01-13 - US-023
+- What was implemented: Fixed window growing beyond terminal size by using Ink's useStdout hook
+- Files changed:
+  - source/app.tsx - Added useStdout hook for terminal dimensions, resize event handling, height/width prop passing
+  - source/components/MainLayout.tsx - Added height and terminalWidth props, overflow hidden, dynamic maxLines calculation
+  - source/components/TabPanel.tsx - Added contentWidth prop to pass to child components
+  - source/components/OutputPanel.tsx - Added calculateRenderedRows() for accurate row counting with ANSI stripping, fixed height box
+  - source/components/ProgressLog.tsx - Added calculateRenderedRows() for accurate row counting, fixed height box
+- **Learnings:**
+  - Ink's `useStdout` hook returns `{stdout}` which has `rows` and `columns` properties for terminal dimensions
+  - Register for `stdout.on('resize', handler)` to respond to terminal size changes, clean up with `.off()`
+  - Use `overflow="hidden"` on Box components to prevent content from growing beyond fixed height
+  - Multi-line output needs ANSI code stripping (`/\x1b\[[0-9;]*m/g`) for accurate length calculation
+  - Calculate visible lines by counting actual rendered rows (width / content width) not just array length
+  - Change `wrap="truncate"` to `wrap="wrap"` to allow proper line wrapping within fixed viewport
+  - Set explicit `height={maxLines + 2}` on content boxes to account for border (2 rows)
+---
+
+## 2026-01-13 - US-023
+- What was implemented: Filter output panel to show mainly assistant messages with extra messages only after the latest assistant message
+- Files changed:
+  - source/lib/stream-formatter.ts - Added `FormattedOutput` type with source tracking, `formatStreamLineWithSource()`, `createFilteringStreamFormatter()`, and `filterMessagesForDisplay()` functions
+  - source/lib/iteration-executor.ts - Changed to use filtering stream formatter, updated output event type to emit `FormattedOutput[]`
+  - source/app.tsx - Updated state to use `FormattedOutput[]`, added `useMemo` to convert to string[] for display
+- **Learnings:**
+  - Use a discriminated union type (`FormattedOutput`) with `source` field to track message origin (assistant/user/result)
+  - Filtering logic: keep all assistant messages + all messages after the last assistant (shows "live" tool results)
+  - When emitting filtered arrays, the receiver should replace (not append) to reflect the current filtered view
+  - Add `source: 'assistant'` for synthetic messages (story start, iteration complete, errors) to ensure they persist in filtered view
+  - The result type should always be included in filtered output (completion summary)
+---
+
+## 2026-01-13 - US-021
+- What was implemented: Error boundary component and graceful error handling for the CLI
+- Files changed:
+  - source/components/ErrorBoundary.tsx - New component with ErrorBoundary class and ErrorDisplay functional component
+  - source/components/index.ts - Added barrel export for ErrorBoundary and ErrorDisplay
+  - source/types/state.ts - Added 'error' to AppView type
+  - source/app.tsx - Integrated ErrorBoundary, added error view with retry/exit options, improved fatal error handling
+- **Learnings:**
+  - React error boundaries must be class components - they require `componentDidCatch` and `getDerivedStateFromError` lifecycle methods
+  - Use `override` modifier on methods that override base class methods (required by TypeScript strict mode)
+  - Prefix unused parameters with underscore (e.g., `_error`) to avoid TS6133 unused variable errors
+  - Separate ErrorDisplay as a functional component for reuse in both ErrorBoundary fallback and explicit error view
+  - Store `lastIterations` in state to enable retry functionality that resumes with same iteration count
+  - The xo linter has a persistent bug with `unicorn/expiring-todo-comments` - `tsc --noEmit` is the reliable verification
+---
+
+## 2026-01-13 - US-024
+- What was implemented: Fixed stop after iteration functionality to allow graceful stopping
+- Files changed:
+  - source/lib/iteration-executor.ts - Added `shouldStopAfterIteration` callback to IterationOptions, check after iterationComplete
+  - source/app.tsx - Added stopAfterIterationRef, updated handleStopAfterIteration to set flag instead of aborting
+- **Learnings:**
+  - Use a callback function `() => boolean` instead of passing a mutable ref directly - allows cleaner decoupling between UI and executor
+  - AbortSignal is for immediate cancellation (kills current process), use a separate mechanism for graceful stop
+  - Check graceful stop flag after `iterationComplete` event is emitted, before the next iteration loop cycle starts
+  - Reset the flag at the start of each execution run (`stopAfterIterationRef.current = false`) to ensure clean state
+  - The existing UI footer already displays "Stopping after current iteration..." - just needed the backend to respect the flag
+---
+
+## 2026-01-13 - US-025
+- What was implemented: Story ID detector module for parsing AI output to find which story was actually worked on
+- Files changed:
+  - source/lib/story-detector.ts - New module with detectStoryIdFromOutput() and extractStoryId() functions
+  - source/lib/index.ts - Added barrel export for story-detector
+- **Learnings:**
+  - Use `Array.at(-1)` instead of `arr[arr.length - 1]` for safer last element access in TypeScript strict mode
+  - When using regex matchAll(), the result is an iterator - spread to array with `[...output.matchAll(pattern)]`
+  - Global regex patterns with `/g` flag are required for matchAll() to work correctly
+  - TypeScript strict mode requires explicit null checks even after array length checks - use optional chaining `lastMatch?.[1]`
+  - Return discriminated union type with `source: 'commit' | 'mention'` to indicate match origin for debugging
+  - Commit message patterns should use case-insensitive flag `/gi` and handle both bracketed `[US-XXX]` and unbracketed `US-XXX` formats
+---
+
+## 2026-01-13 - US-026
+- What was implemented: Raw output accumulation feature for the filtering stream formatter
+- Files changed:
+  - source/lib/stream-formatter.ts - Added getRawTextContent() method, stripAnsiCodes() helper, and extractRawAssistantContent() function
+- **Learnings:**
+  - Use a separate accumulator array (`rawTextParts`) for raw content vs. formatted output to keep concerns separated
+  - Regex pattern `/\x1b\[[0-9;]*m/g` strips all ANSI escape sequences including color codes, bold, etc.
+  - The `extractRawAssistantContent()` function reuses `summarizeToolInput()` for consistency in tool_use representation
+  - Process raw content accumulation in the same loop as formatted output to avoid double-parsing JSON
+  - Include tool_use names and input summaries in raw output because commit messages often appear in tool calls (like Bash)
+  - Internal helper functions can be nested inside the factory function for encapsulation
+---
+
+## 2026-01-13 - US-027
+- What was implemented: Updated iteration executor to detect and use the actual story ID from AI output
+- Files changed:
+  - source/lib/iteration-executor.ts - Added story detection logic after successful Claude execution, new events for mismatch and detection failure
+  - source/app.tsx - Added event handlers for `storyMismatch` and `storyDetectionFailed` events with UI warnings
+- **Learnings:**
+  - Use `getRawTextContent()` from the stream formatter to get clean text for parsing (ANSI stripped)
+  - Always verify detected story ID exists in the PRD before using it to avoid marking non-existent stories
+  - Add new event types (`storyMismatch`, `storyDetectionFailed`) to the EventEmitter for clear separation of warning scenarios
+  - When story mismatch occurs, update the UI story list to show the detected story as in-progress
+  - Use `Array.some()` for existence checks in arrays - cleaner than `findIndex !== -1`
+  - The xo linter bug with `unicorn/expiring-todo-comments` is still present - `tsc --noEmit` is the reliable verification
+---

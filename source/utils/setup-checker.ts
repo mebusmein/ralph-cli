@@ -24,46 +24,13 @@ export function getRalphPaths(cwd: string = process.cwd()): RalphPaths {
 }
 
 /**
- * Check if the .ralph directory exists
+ * Create a setup check item for a given path
  */
-export function checkRalphDirectory(paths: RalphPaths): SetupCheckItem {
+function createCheckItem(name: string, path: string): SetupCheckItem {
 	return {
-		name: '.ralph directory',
-		exists: existsSync(paths.ralphDir),
-		path: paths.ralphDir,
-	};
-}
-
-/**
- * Check if prompt.txt exists
- */
-export function checkPromptFile(paths: RalphPaths): SetupCheckItem {
-	return {
-		name: 'prompt.txt',
-		exists: existsSync(paths.promptFile),
-		path: paths.promptFile,
-	};
-}
-
-/**
- * Check if prd.json exists
- */
-export function checkPrdFile(paths: RalphPaths): SetupCheckItem {
-	return {
-		name: 'prd.json',
-		exists: existsSync(paths.prdFile),
-		path: paths.prdFile,
-	};
-}
-
-/**
- * Check if ralph-plan skill exists in .claude/skills
- */
-export function checkRalphPlanSkill(paths: RalphPaths): SetupCheckItem {
-	return {
-		name: 'ralph-plan skill',
-		exists: existsSync(paths.ralphPlanSkill),
-		path: paths.ralphPlanSkill,
+		name,
+		exists: existsSync(path),
+		path,
 	};
 }
 
@@ -74,10 +41,10 @@ export function checkSetup(cwd: string = process.cwd()): SetupCheckResult {
 	const paths = getRalphPaths(cwd);
 
 	const items: SetupCheckItem[] = [
-		checkRalphDirectory(paths),
-		checkPromptFile(paths),
-		checkPrdFile(paths),
-		checkRalphPlanSkill(paths),
+		createCheckItem('.ralph directory', paths.ralphDir),
+		createCheckItem('prompt.txt', paths.promptFile),
+		createCheckItem('prd.json', paths.prdFile),
+		createCheckItem('ralph-plan skill', paths.ralphPlanSkill),
 	];
 
 	const isComplete = items.every(item => item.exists);

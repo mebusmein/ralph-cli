@@ -87,10 +87,10 @@ Replace hardcoded strings with the translation function:
 
 ```tsx
 // ❌ WRONG
-notification.success("De actie is succesvol uitgevoerd");
+notification.success('De actie is succesvol uitgevoerd');
 
 // ✅ CORRECT
-notification.success(t("ACTION_SUCCESS"));
+notification.success(t('ACTION_SUCCESS'));
 ```
 
 ## Step 4: Add Translation to File
@@ -114,17 +114,17 @@ Group related keys together with comments:
 ```typescript
 // Basic.ts example
 export default {
-  // Actions
-  SAVE: "Opslaan",
-  CANCEL: "Annuleren",
-  DELETE: "Verwijderen",
+	// Actions
+	SAVE: 'Opslaan',
+	CANCEL: 'Annuleren',
+	DELETE: 'Verwijderen',
 
-  // States
-  NO_RESULTS_FOUND: "Geen resultaten gevonden",
-  LOADING: "Laden...",
+	// States
+	NO_RESULTS_FOUND: 'Geen resultaten gevonden',
+	LOADING: 'Laden...',
 
-  // Messages
-  ACTION_SUCCESS: "De actie is succesvol uitgevoerd"
+	// Messages
+	ACTION_SUCCESS: 'De actie is succesvol uitgevoerd',
 };
 ```
 
