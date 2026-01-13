@@ -7,23 +7,21 @@ import App from './app.js';
 const cli = meow(
 	`
 	Usage
-	  $ ralph-cli
+	  $ ralph-cli [iterations]
 
 	Options
-		--name  Your name
+		--help  Show help
 
 	Examples
-	  $ ralph-cli --name=Jane
-	  Hello, Jane
+	  $ ralph-cli        # Interactive mode - prompts for iterations
+	  $ ralph-cli 5      # Run 5 iterations directly
 `,
 	{
 		importMeta: import.meta,
-		flags: {
-			name: {
-				type: 'string',
-			},
-		},
 	},
 );
 
-render(<App name={cli.flags.name} />);
+// Parse positional argument for iterations
+const iterations = cli.input[0] ? parseInt(cli.input[0], 10) : undefined;
+
+render(<App initialIterations={iterations} />);
