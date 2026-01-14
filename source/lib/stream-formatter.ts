@@ -42,7 +42,7 @@ type AssistantContentItem =
 type UserContentItem = {
 	type: 'tool_result';
 	tool_use_id: string;
-	content: string;
+	content: unknown; // Can be string or object (e.g., when tool reads JSON files)
 	is_error?: boolean;
 };
 
@@ -105,6 +105,63 @@ type StreamMessage =
 	| ResultMessage;
 
 /**
+ * Type guard to validate that a parsed JSON object is a valid StreamMessage
+ *
+ * This prevents arbitrary JSON content (e.g., from file reads) from being
+ * incorrectly parsed as stream protocol messages.
+ */
+function isValidStreamMessage(obj: unknown): obj is StreamMessage {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+
+	const record = obj as Record<string, unknown>;
+	const messageType = record['type'];
+
+	if (typeof messageType !== 'string') {
+		return false;
+	}
+
+	switch (messageType) {
+		case 'assistant': {
+			// Assistant messages must have message.content array
+			const message = record['message'];
+			if (typeof message !== 'object' || message === null) {
+				return false;
+			}
+			const messageRecord = message as Record<string, unknown>;
+			const content = messageRecord['content'];
+			return Array.isArray(content);
+		}
+
+		case 'user': {
+			// User messages must have message.content array
+			const message = record['message'];
+			if (typeof message !== 'object' || message === null) {
+				return false;
+			}
+			const messageRecord = message as Record<string, unknown>;
+			const content = messageRecord['content'];
+			return Array.isArray(content);
+		}
+
+		case 'system': {
+			// System messages just need the type field (subtype is optional)
+			return true;
+		}
+
+		case 'result': {
+			// Result messages just need the type field
+			// Other fields (cost_usd, duration_ms, is_error) are optional
+			return true;
+		}
+
+		default:
+			return false;
+	}
+}
+
+/**
  * Source type for formatted output - used for filtering
  */
 export type FormattedOutputSource = 'assistant' | 'user' | 'result' | 'system';
@@ -162,19 +219,27 @@ function summarizeToolInput(input: Record<string, unknown>): string {
  */
 function formatToolUse(name: string, input: Record<string, unknown>): string {
 	const inputSummary = summarizeToolInput(input);
-	return `${COLORS.cyan}[${name}]${COLORS.reset} ${COLORS.gray}${truncate(inputSummary)}${COLORS.reset}\n`;
+	return `${COLORS.cyan}[${name}]${COLORS.reset} ${COLORS.gray}${truncate(
+		inputSummary,
+	)}${COLORS.reset}\n`;
 }
 
 /**
  * Format a tool_result content item
  */
 function formatToolResult(
-	content: string,
+	content: unknown,
 	isError: boolean,
 	toolResult?: {stdout?: string; stderr?: string; is_error?: boolean} | string,
 ): string {
 	// Determine actual content and error status
-	let displayContent = content;
+	// Content may be an object (e.g., when reading JSON files), so ensure it's a string
+	let displayContent: string =
+		typeof content === 'string'
+			? content
+			: content !== null && content !== undefined
+			? JSON.stringify(content)
+			: '';
 	let actualIsError = isError;
 
 	if (typeof toolResult === 'object' && toolResult !== null) {
@@ -202,7 +267,9 @@ function formatToolResult(
 		return `${statusColor}${statusIcon}${COLORS.reset}\n`;
 	}
 
-	return `${statusColor}${statusIcon}${COLORS.reset} ${COLORS.gray}${truncate(displayContent)}${COLORS.reset}\n`;
+	return `${statusColor}${statusIcon}${COLORS.reset} ${COLORS.gray}${truncate(
+		displayContent,
+	)}${COLORS.reset}\n`;
 }
 
 /**
@@ -271,7 +338,9 @@ function formatResultMessage(message: ResultMessage): string {
 	const status = message.is_error ? 'Error' : 'Completed';
 	const statusColor = message.is_error ? COLORS.red : COLORS.green;
 
-	parts.push(`\n${COLORS.bold}\u2501\u2501\u2501 ${statusColor}${status}${COLORS.reset}`);
+	parts.push(
+		`\n${COLORS.bold}\u2501\u2501\u2501 ${statusColor}${status}${COLORS.reset}`,
+	);
 
 	if (message.duration_ms !== undefined) {
 		const seconds = Math.floor(message.duration_ms / 1000);
@@ -298,12 +367,21 @@ function formatStreamLineWithSource(line: string): FormattedOutput | null {
 		return null;
 	}
 
-	let message: StreamMessage;
+	let parsed: unknown;
 	try {
-		message = JSON.parse(trimmedLine) as StreamMessage;
+		parsed = JSON.parse(trimmedLine);
 	} catch {
 		return null;
 	}
+
+	// Validate the parsed JSON matches expected StreamMessage structure
+	// This prevents file content (e.g., from Read tool) from being incorrectly
+	// processed as stream protocol messages
+	if (!isValidStreamMessage(parsed)) {
+		return null;
+	}
+
+	const message = parsed;
 
 	switch (message.type) {
 		case 'assistant': {
@@ -393,15 +471,20 @@ export function createStreamFormatter(): {
 		const trimmedLine = line.trim();
 		if (!trimmedLine) return;
 
-		let message: StreamMessage;
+		let parsed: unknown;
 		try {
-			message = JSON.parse(trimmedLine) as StreamMessage;
+			parsed = JSON.parse(trimmedLine);
 		} catch {
 			return;
 		}
 
-		if (message.type === 'assistant') {
-			const rawContent = extractRawAssistantContent(message);
+		// Validate before processing
+		if (!isValidStreamMessage(parsed)) {
+			return;
+		}
+
+		if (parsed.type === 'assistant') {
+			const rawContent = extractRawAssistantContent(parsed);
 			if (rawContent) {
 				rawTextParts.push(rawContent);
 			}
