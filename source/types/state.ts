@@ -15,13 +15,7 @@ export type StoryWithStatus = UserStory & {
 /**
  * Represents the current view/screen of the application
  */
-export type AppView =
-	| 'setup'
-	| 'no-prd'
-	| 'iteration-prompt'
-	| 'running'
-	| 'complete'
-	| 'error';
+export type AppView = 'setup' | 'no-prd' | 'main' | 'error';
 
 /**
  * Represents the active tab in the main view

@@ -3,7 +3,6 @@ import {Text, Box, useApp, useStdout} from 'ink';
 import {
 	SetupWizard,
 	MainLayout,
-	IterationPrompt,
 	KeyboardHelpFooter,
 	ErrorBoundary,
 	ErrorDisplay,
@@ -106,12 +105,7 @@ export default function App({
 			if (hasPrd) {
 				const hasStories = loadPRD();
 				if (hasStories) {
-					// If initialIterations provided, skip the prompt
-					if (initialIterations !== undefined) {
-						setView('running');
-					} else {
-						setView('iteration-prompt');
-					}
+					setView('main');
 				} else {
 					setView('no-prd');
 				}
@@ -119,13 +113,12 @@ export default function App({
 				setView('no-prd');
 			}
 		},
-		[loadPRD, initialIterations],
+		[loadPRD],
 	);
 
-	// Handle iteration confirmation
+	// Handle iteration confirmation (start execution)
 	const handleIterationConfirm = useCallback(
 		(iterations: number) => {
-			setView('running');
 			setIsRunning(true);
 			setOutputMessages([]);
 			setCompletionReason(null);
@@ -197,7 +190,7 @@ export default function App({
 					error: 'Stopped due to error',
 				};
 				setCompletionReason(reasonMessages[reason] ?? reason);
-				setView('complete');
+				// Stay on 'main' view - don't change view state
 			});
 
 			emitter.on('error', errorMsg => {
@@ -258,11 +251,6 @@ export default function App({
 		[cwd, paths.prdFile, loadPRD, logFile],
 	);
 
-	// Handle iteration cancel
-	const handleIterationCancel = useCallback(() => {
-		exit();
-	}, [exit]);
-
 	// Handle retry after error
 	const handleRetry = useCallback(() => {
 		setErrorMessage(null);
@@ -283,7 +271,7 @@ export default function App({
 		abortControllerRef.current?.abort();
 	}, []);
 
-	// Keyboard controls
+	// Keyboard controls (only enabled when on main view)
 	useKeyboardControls(
 		{
 			onTabChange: setActiveTab,
@@ -292,16 +280,18 @@ export default function App({
 		},
 		{
 			activeTab,
-			enabled: view === 'running' || view === 'complete',
+			enabled: view === 'main',
 		},
 	);
 
-	// Auto-start if initialIterations provided and we're on the running view
+	// Auto-start if initialIterations provided and we're on the main view
 	useEffect(() => {
-		if (view === 'running' && !isRunning && initialIterations !== undefined) {
+		if (view === 'main' && !isRunning && initialIterations !== undefined) {
 			handleIterationConfirm(initialIterations);
 		}
-	}, [view, isRunning, initialIterations, handleIterationConfirm]);
+		// Only run once when transitioning to main view with initialIterations
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [view]);
 
 	// Initial setup check
 	useEffect(() => {
@@ -309,17 +299,13 @@ export default function App({
 		if (setupResult.isComplete) {
 			const hasStories = loadPRD();
 			if (hasStories) {
-				if (initialIterations !== undefined) {
-					setView('running');
-				} else {
-					setView('iteration-prompt');
-				}
+				setView('main');
 			} else {
 				setView('no-prd');
 			}
 		}
 		// If setup is not complete, stay in 'setup' view for SetupWizard
-	}, [cwd, loadPRD, initialIterations]);
+	}, [cwd, loadPRD]);
 
 	// Render based on current view
 	if (view === 'setup') {
@@ -347,16 +333,6 @@ export default function App({
 		);
 	}
 
-	if (view === 'iteration-prompt') {
-		return (
-			<IterationPrompt
-				defaultValue={1}
-				onConfirm={handleIterationConfirm}
-				onCancel={handleIterationCancel}
-			/>
-		);
-	}
-
 	if (view === 'error') {
 		return (
 			<Box flexDirection="column" padding={1}>
@@ -373,7 +349,7 @@ export default function App({
 		);
 	}
 
-	if (view === 'running' || view === 'complete') {
+	if (view === 'main') {
 		return (
 			<ErrorBoundary onRetry={handleRetry} onExit={exit}>
 				<Box flexDirection="column" height={terminalHeight}>
@@ -401,7 +377,11 @@ export default function App({
 							</Text>
 						</Box>
 					)}
-					<KeyboardHelpFooter isRunning={isRunning} isStopping={isStopping} />
+					<KeyboardHelpFooter
+						isRunning={isRunning}
+						isStopping={isStopping}
+						onStartIterations={!isRunning ? handleIterationConfirm : undefined}
+					/>
 				</Box>
 			</ErrorBoundary>
 		);
