@@ -11,7 +11,6 @@ type Props = {
 	outputLines: string[];
 	progressFilePath: string;
 	maxLines?: number;
-	onTabChange?: (tab: TabId) => void;
 	height?: number;
 	terminalWidth?: number;
 };
@@ -23,7 +22,6 @@ export default function MainLayout({
 	outputLines,
 	progressFilePath,
 	maxLines = 20,
-	onTabChange,
 	height,
 	terminalWidth = 80,
 }: Props) {
@@ -62,7 +60,6 @@ export default function MainLayout({
 					outputLines={outputLines}
 					progressFilePath={progressFilePath}
 					maxLines={effectiveMaxLines}
-					onTabChange={onTabChange}
 					contentWidth={rightPanelWidth}
 				/>
 			</Box>

@@ -439,3 +439,45 @@ Started: 2026-01-13
   - Use `Math.max(10, calculatedWidth)` to ensure minimum readable title length even in narrow terminals
   - Props flow: terminalWidth -> MainLayout -> leftColumnWidth -> TicketList.availableWidth -> TicketItem.maxTitleLength
 ---
+
+## 2026-01-14 - US-029
+- What was implemented: Integrated iteration prompt into main screen by moving it to the footer
+- Files changed:
+  - source/types/state.ts - Simplified AppView type to 'setup' | 'no-prd' | 'main' | 'error'
+  - source/components/KeyboardHelpFooter.tsx - Added iteration input with useInput hook and inline validation
+  - source/components/index.ts - Removed IterationPrompt export
+  - source/app.tsx - Removed 'iteration-prompt', 'running', 'complete' views; unified into single 'main' view
+  - source/components/IterationPrompt.tsx - Deleted (functionality moved to KeyboardHelpFooter)
+- **Learnings:**
+  - Consolidating multiple similar views ('running', 'complete') into a single view with state flags (isRunning, completionReason) simplifies state management
+  - useInput with `{isActive: boolean}` option allows conditional keyboard input handling - useful for enabling input only when not running
+  - Pass callback as optional prop (`onStartIterations?: (...) => void`) and check for undefined to conditionally render input UI
+  - For auto-start with CLI args, use a separate useEffect with limited deps to run only once when view changes
+  - eslint-disable-next-line comment needed when intentionally limiting useEffect dependencies
+---
+
+## 2026-01-14 - US-030
+- What was implemented: Updated README with accurate documentation for ralph-cli
+- Files changed:
+  - readme.md - Complete rewrite replacing create-ink-app template with actual project documentation
+- **Learnings:**
+  - README was named `readme.md` (lowercase) - git on macOS is case-insensitive for tracking
+  - Run `npx prettier --write <file>` after editing markdown to ensure consistent formatting
+  - Markdown tables need proper column alignment which prettier handles automatically
+  - Include all CLI flags documented in source/cli.tsx helpText in the README
+  - Quick Start section should cover the happy path: run -> setup wizard -> edit PRD -> run again
+---
+
+## 2026-01-14 - US-031
+- What was implemented: Fixed JSON stream parser to validate messages before processing
+- Files changed:
+  - source/lib/stream-formatter.ts - Added isValidStreamMessage() type guard, updated parsing logic
+  - test.ts - Added test cases for stream formatter JSON validation
+- **Learnings:**
+  - Using `as StreamMessage` without validation allows any JSON with a `type` field to be processed
+  - Type guards with `obj is T` return type enable TypeScript to narrow types safely
+  - Claude's stream-json format requires `message.content` array for assistant and user messages
+  - Tool result content should be typed as `unknown` since it can be string or object (JSON files)
+  - The xo linter bug with `unicorn/expiring-todo-comments` persists - use `tsc --noEmit` for verification
+  - AVA + ts-node has compatibility issues with Node.js v24 - tests may fail to run but code is correct
+---

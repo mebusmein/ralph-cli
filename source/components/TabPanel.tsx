@@ -20,7 +20,6 @@ type Props = {
 	outputLines: string[];
 	progressFilePath: string;
 	maxLines?: number;
-	onTabChange?: (tab: TabId) => void;
 	contentWidth?: number;
 };
 

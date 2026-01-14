@@ -28,15 +28,6 @@ export type SetupCheckResult = {
 };
 
 /**
- * CLI arguments/flags
- */
-export type CLIFlags = {
-	iterations?: number;
-	single?: boolean;
-	help?: boolean;
-};
-
-/**
  * Claude execution options
  */
 export type ClaudeExecutionOptions = {
@@ -44,49 +35,4 @@ export type ClaudeExecutionOptions = {
 	onOutput?: (data: string) => void;
 	signal?: AbortSignal;
 	logFile?: string;
-};
-
-/**
- * Claude stream event types
- */
-export type ClaudeEventType =
-	| 'system'
-	| 'message_start'
-	| 'content_block_start'
-	| 'content_block_delta'
-	| 'content_block_stop'
-	| 'message_delta'
-	| 'message_stop'
-	| 'result';
-
-/**
- * Base Claude stream event
- */
-export type ClaudeStreamEvent = {
-	type: ClaudeEventType;
-	[key: string]: unknown;
-};
-
-/**
- * Claude content block delta event
- */
-export type ClaudeContentBlockDelta = {
-	type: 'content_block_delta';
-	index: number;
-	delta: {
-		type: 'text_delta';
-		text: string;
-	};
-};
-
-/**
- * Claude result event
- */
-export type ClaudeResultEvent = {
-	type: 'result';
-	result: string;
-	cost_usd: number;
-	is_error: boolean;
-	duration_ms: number;
-	duration_api_ms: number;
 };

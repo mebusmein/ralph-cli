@@ -88,7 +88,7 @@ export function calculateVisibleLines(
 				? {
 						hiddenAbove,
 						total: lines.length,
-					}
+				  }
 				: null,
 	};
 }

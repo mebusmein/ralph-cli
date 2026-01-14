@@ -429,6 +429,60 @@
 			"priority": 26,
 			"passes": true,
 			"notes": "Bug: Long story titles wrap to multiple lines causing messy layout with text overflowing the column boundaries."
+		},
+		{
+			"id": "US-029",
+			"title": "Integrate iteration prompt into main screen",
+			"acceptanceCriteria": [
+				"Remove separate 'iteration-prompt' view from AppView type",
+				"Show MainLayout immediately after setup (skip iteration prompt screen)",
+				"Add iteration input field to MainLayout footer when not running",
+				"Input field shows 'Enter iterations:' prompt with text input",
+				"Pressing Enter with valid number starts execution",
+				"Input validation inline (show error for invalid input)",
+				"When execution completes, return to input-ready state (not a separate view)",
+				"If initialIterations provided via CLI arg, start immediately without prompt",
+				"Keyboard controls still work: Tab switches tabs, Ctrl+C cancels, Ctrl+X/q stops after iteration",
+				"typecheck passes"
+			],
+			"priority": 27,
+			"passes": true,
+			"notes": "UX improvement: Show the main screen with ticket list immediately, integrate iteration prompt into the footer instead of a separate screen."
+		},
+		{
+			"id": "US-030",
+			"title": "Update README with accurate documentation",
+			"acceptanceCriteria": [
+				"Replace auto-generated create-ink-app content with actual project description",
+				"Add clear description of what ralph-cli does (interactive TUI for managing Claude-based user stories)",
+				"Document the .ralph directory structure (prd.json, prompt.txt, progress.txt)",
+				"Document CLI usage: ralph-cli, ralph-cli <iterations>, ralph-cli --help",
+				"Document the --log-file flag option",
+				"Explain the setup wizard and what it creates",
+				"Document keyboard controls (Tab, Ctrl+C, Ctrl+X/q)",
+				"Include prerequisites section (Node.js 16+, Claude CLI installed)",
+				"Add quick start section showing basic workflow",
+				"typecheck passes"
+			],
+			"priority": 28,
+			"passes": true,
+			"notes": "Current README is the auto-generated template from create-ink-app and doesn't reflect the actual CLI functionality."
+		},
+		{
+			"id": "US-031",
+			"title": "Fix JSON stream parser incorrectly parsing file content as stream messages",
+			"acceptanceCriteria": [
+				"Debug stream-formatter.ts to understand how tool_result content with JSON files is being handled",
+				"Identify why JSON content from Read tool results gets parsed as top-level stream messages",
+				"Ensure that content within tool_result fields is treated as opaque text, not parsed as JSON",
+				"Add validation that parsed JSON matches expected StreamMessage structure before processing",
+				"Consider checking for required fields (type, message) rather than just valid JSON",
+				"Add test case with a tool reading a JSON file to verify fix",
+				"typecheck passes"
+			],
+			"priority": 29,
+			"passes": true,
+			"notes": "Bug: When Claude uses the Read tool to read a JSON file, the file's JSON content appears to be incorrectly parsed as stream protocol messages. The stream-formatter.ts splits input by newlines and parses each line as JSON. If tool result content contains JSON that happens to match StreamMessage structure (e.g., has a 'type' field), it may be incorrectly processed. Key file: source/lib/stream-formatter.ts lines 412-435 (processChunk function)."
 		}
 	]
 }

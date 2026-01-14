@@ -201,14 +201,3 @@ After planning is complete, remind the user:
 2. Create the feature branch: \`git checkout -b <branchName>\`
 3. Start Ralph with the prompt in \`.ralph/prompt.txt\`
 `;
-
-/**
- * All bundled templates as an object for convenience
- */
-export const templates = {
-	prompt: DEFAULT_PROMPT_TEMPLATE,
-	prd: DEFAULT_PRD_TEMPLATE,
-	progress: DEFAULT_PROGRESS_TEMPLATE_BASE,
-	getProgress: getProgressTemplate,
-	ralphPlanSkill: DEFAULT_RALPH_PLAN_SKILL,
-} as const;

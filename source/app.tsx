@@ -359,7 +359,6 @@ export default function App({
 						activeTab={activeTab}
 						outputLines={outputLines}
 						progressFilePath={paths.progressFile}
-						onTabChange={setActiveTab}
 						height={availableHeight}
 						terminalWidth={terminalWidth}
 					/>

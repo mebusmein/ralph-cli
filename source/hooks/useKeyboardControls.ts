@@ -61,10 +61,3 @@ export const KEYBOARD_HELP = {
 	stopGraceful: 'q/Ctrl+X: stop after iteration',
 	cancelImmediate: 'Ctrl+C: cancel now',
 };
-
-/**
- * Get formatted help text for display in a footer.
- */
-export function getKeyboardHelpText(): string {
-	return `${KEYBOARD_HELP.tabSwitch} | ${KEYBOARD_HELP.stopGraceful} | ${KEYBOARD_HELP.cancelImmediate}`;
-}

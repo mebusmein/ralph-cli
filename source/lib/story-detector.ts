@@ -62,15 +62,3 @@ export function detectStoryIdFromOutput(output: string): StoryDetectionResult {
 	// No story ID found
 	return null;
 }
-
-/**
- * Extracts just the story ID string from output, or null if not found.
- * Convenience wrapper around detectStoryIdFromOutput.
- *
- * @param output - The raw text output from the AI
- * @returns The story ID string (e.g., "US-001") or null
- */
-export function extractStoryId(output: string): string | null {
-	const result = detectStoryIdFromOutput(output);
-	return result?.storyId ?? null;
-}

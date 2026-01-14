@@ -33,18 +33,4 @@
  *   return { success: false, error: { message: 'Failed' } };
  * }
  */
-export type Result<T, E> =
-	| ({success: true} & T)
-	| {success: false; error: E};
-
-/**
- * Helper type to extract the success value type from a Result
- */
-export type SuccessValue<R> = R extends {success: true} & infer T ? T : never;
-
-/**
- * Helper type to extract the error type from a Result
- */
-export type ErrorValue<R> = R extends {success: false; error: infer E}
-	? E
-	: never;
+export type Result<T, E> = ({success: true} & T) | {success: false; error: E};

@@ -111,6 +111,24 @@ export function findNextIncompleteStory(
 }
 
 /**
+ * Determines the status of a story based on its state and current execution
+ */
+function getStoryStatus(
+	story: UserStory,
+	currentStoryId: string | null,
+): StoryWithStatus['status'] {
+	if (story.passes) {
+		return 'passed';
+	}
+
+	if (story.id === currentStoryId) {
+		return 'in-progress';
+	}
+
+	return 'pending';
+}
+
+/**
  * Converts UserStory array to StoryWithStatus array based on current execution state
  */
 export function getStoriesWithStatus(
@@ -119,11 +137,7 @@ export function getStoriesWithStatus(
 ): StoryWithStatus[] {
 	return stories.map(story => ({
 		...story,
-		status: story.passes
-			? 'passed'
-			: story.id === currentStoryId
-			? 'in-progress'
-			: 'pending',
+		status: getStoryStatus(story, currentStoryId),
 	}));
 }
 
