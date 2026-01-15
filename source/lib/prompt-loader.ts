@@ -28,6 +28,7 @@ export type PromptLoadResult = {
 export type PromptVariables = {
 	/**
 	 * Path to the PRD file
+	 * @deprecated Use epicId and epicTitle for beads workflow
 	 */
 	prdFile: string;
 
@@ -35,22 +36,45 @@ export type PromptVariables = {
 	 * Path to the progress file
 	 */
 	progressFile: string;
+
+	/**
+	 * ID of the epic being worked on
+	 */
+	epicId?: string;
+
+	/**
+	 * Title of the epic being worked on
+	 */
+	epicTitle?: string;
 };
 
 /**
  * Expands variables in a prompt template
  *
  * Supported variables:
- * - $PRD_FILE - Path to the prd.json file
+ * - $PRD_FILE - Path to the prd.json file (deprecated)
  * - $PROGRESS_FILE - Path to the progress.txt file
+ * - $EPIC_ID - ID of the epic being worked on
+ * - $EPIC_TITLE - Title of the epic being worked on
  */
 export function expandPromptVariables(
 	template: string,
 	variables: PromptVariables,
 ): string {
-	return template
+	let result = template
 		.replaceAll('$PRD_FILE', variables.prdFile)
 		.replaceAll('$PROGRESS_FILE', variables.progressFile);
+
+	// Add epic variables for beads workflow
+	if (variables.epicId !== undefined) {
+		result = result.replaceAll('$EPIC_ID', variables.epicId);
+	}
+
+	if (variables.epicTitle !== undefined) {
+		result = result.replaceAll('$EPIC_TITLE', variables.epicTitle);
+	}
+
+	return result;
 }
 
 /**
@@ -90,16 +114,60 @@ export function loadPromptTemplate(
 }
 
 /**
+ * Options for creating a prompt generator
+ */
+export type PromptGeneratorOptions = {
+	/**
+	 * Current working directory
+	 */
+	cwd?: string;
+
+	/**
+	 * Epic ID for beads workflow
+	 */
+	epicId?: string;
+
+	/**
+	 * Epic title for beads workflow
+	 */
+	epicTitle?: string;
+};
+
+/**
  * Create a prompt generator function for use with the iteration executor
  *
- * The generated prompt includes the base template plus any story-specific context
+ * The generated prompt includes the base template plus epic context for beads workflow
  *
- * @param cwd - Current working directory
- * @returns A function that generates prompts for a given story
+ * @param optionsOrCwd - Configuration options object or just the cwd string (for backward compat)
+ * @returns A function that generates prompts
  */
 export function createPromptGenerator(
-	cwd: string = process.cwd(),
+	optionsOrCwd: PromptGeneratorOptions | string = {},
 ): () => string {
-	const {content} = loadPromptTemplate(cwd);
-	return () => content;
+	// Handle backward compatibility: accept either string (cwd) or options object
+	const options: PromptGeneratorOptions =
+		typeof optionsOrCwd === 'string' ? {cwd: optionsOrCwd} : optionsOrCwd;
+
+	const {cwd = process.cwd(), epicId, epicTitle} = options;
+	const paths = getRalphPaths(cwd);
+
+	const variables: PromptVariables = {
+		prdFile: paths.prdFile,
+		progressFile: paths.progressFile,
+		epicId,
+		epicTitle,
+	};
+
+	// Try to load from file
+	if (existsSync(paths.promptFile)) {
+		try {
+			const fileContent = readFileSync(paths.promptFile, 'utf8');
+			return () => expandPromptVariables(fileContent, variables);
+		} catch {
+			// Fall through to default on read error
+		}
+	}
+
+	// Fall back to default template
+	return () => expandPromptVariables(DEFAULT_PROMPT_TEMPLATE, variables);
 }
