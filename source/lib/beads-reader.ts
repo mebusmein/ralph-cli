@@ -336,6 +336,80 @@ export async function getExternalBlockers(
 }
 
 /**
+ * Result type for sync operation
+ */
+export type BeadsSyncResult = {
+	success: boolean;
+	message?: string;
+	error?: string;
+};
+
+/**
+ * Runs bd sync to synchronize beads state with git remote
+ *
+ * @returns Promise resolving to sync result
+ */
+export async function runBeadsSync(): Promise<BeadsSyncResult> {
+	// Check if beads is initialized
+	if (!existsSync('.beads')) {
+		return {
+			success: false,
+			error: 'Beads is not initialized',
+		};
+	}
+
+	return new Promise(resolve => {
+		try {
+			// Note: bd sync doesn't support --json, so we just run it and capture output
+			const childProcess = spawn('bd', ['sync'], {
+				stdio: ['ignore', 'pipe', 'pipe'],
+				shell: false,
+			});
+
+			let stdout = '';
+			let stderr = '';
+
+			childProcess.stdout?.on('data', (data: Buffer) => {
+				stdout += data.toString();
+			});
+
+			childProcess.stderr?.on('data', (data: Buffer) => {
+				stderr += data.toString();
+			});
+
+			childProcess.on('error', (error: Error) => {
+				resolve({
+					success: false,
+					error: `Failed to run bd sync: ${error.message}`,
+				});
+			});
+
+			childProcess.on('exit', code => {
+				if (code !== 0) {
+					resolve({
+						success: false,
+						error: stderr || `bd sync exited with code ${code}`,
+					});
+					return;
+				}
+
+				resolve({
+					success: true,
+					message: stdout.trim() || 'Sync complete',
+				});
+			});
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
+			resolve({
+				success: false,
+				error: `Failed to run bd sync: ${errorMessage}`,
+			});
+		}
+	});
+}
+
+/**
  * Gets detailed information for a specific issue
  *
  * @param issueId - The issue ID to get details for

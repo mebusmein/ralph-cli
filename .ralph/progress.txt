@@ -696,3 +696,18 @@ Started: 2026-01-13
   - The useInput hook with `{isActive: uncommittedWarning}` enables conditional keyboard handling for confirmation dialogs
   - Live epic summary updates can be computed from polled tasks data using filtered counts
 ---
+
+## 2026-01-15 - US-047
+- What was implemented: Added session-end beads sync functionality
+- Files changed:
+  - source/lib/beads-reader.ts - Added runBeadsSync() function with BeadsSyncResult type
+  - source/components/KeyboardHelpFooter.tsx - Added isSyncing prop for sync status display
+  - source/app.tsx - Added sync state, handleExitWithSync callback, useEffect cleanup for unmount sync
+- **Learnings:**
+  - bd sync doesn't support --json flag, so capture raw stdout/stderr output
+  - Use `void` prefix with async function calls in useEffect cleanup for fire-and-forget pattern
+  - Wrap async handlers in `() => void asyncFn()` for onClick handlers that expect sync functions
+  - Multiple exit points need sync: error view exit, ErrorBoundary exit, and component unmount
+  - Show sync status in footer by reusing the "Running..." display area with "Syncing beads..."
+  - Log warnings with console.warn but don't prevent exit on sync failure (silent continue pattern)
+---

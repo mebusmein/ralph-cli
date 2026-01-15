@@ -5,12 +5,14 @@ import {KEYBOARD_HELP} from '../hooks/index.js';
 type Props = {
 	isRunning?: boolean;
 	isStopping?: boolean;
+	isSyncing?: boolean;
 	onStartIterations?: (iterations: number) => void;
 };
 
 export default function KeyboardHelpFooter({
 	isRunning = false,
 	isStopping = false,
+	isSyncing = false,
 	onStartIterations,
 }: Props) {
 	const [input, setInput] = useState('1');
@@ -102,9 +104,14 @@ export default function KeyboardHelpFooter({
 				)}
 				<Text color="red">{KEYBOARD_HELP.cancelImmediate}</Text>
 			</Box>
-			{isRunning && (
+			{isRunning && !isSyncing && (
 				<Text color="green" bold>
 					Running...
+				</Text>
+			)}
+			{isSyncing && (
+				<Text color="cyan" bold>
+					Syncing beads...
 				</Text>
 			)}
 		</Box>

@@ -16,6 +16,7 @@ import {
 	createPromptGenerator,
 	type FormattedOutput,
 	getExternalBlockers,
+	runBeadsSync,
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
 import {
@@ -78,6 +79,7 @@ export default function App({
 	const [outputMessages, setOutputMessages] = useState<FormattedOutput[]>([]);
 	const [isRunning, setIsRunning] = useState(false);
 	const [isStopping, setIsStopping] = useState(false);
+	const [isSyncing, setIsSyncing] = useState(false);
 	const [completionReason, setCompletionReason] = useState<string | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [lastIterations, setLastIterations] = useState<number>(1);
@@ -421,6 +423,29 @@ export default function App({
 		// If setup is not complete, stay in 'setup' view for SetupWizard
 	}, [cwd]);
 
+	// Run beads sync on exit
+	const handleExitWithSync = useCallback(async () => {
+		setIsSyncing(true);
+		const result = await runBeadsSync();
+		setIsSyncing(false);
+		if (!result.success) {
+			// Log warning but don't prevent exit (silent continue)
+			console.warn(`bd sync warning: ${result.error}`);
+		}
+
+		exit();
+	}, [exit]);
+
+	// Sync beads state on component unmount
+	useEffect(() => {
+		return () => {
+			// Run sync on unmount - fire and forget since we're unmounting
+			void runBeadsSync().catch(() => {
+				// Silent continue on error
+			});
+		};
+	}, []);
+
 	// Render based on current view
 	if (view === 'setup') {
 		return <SetupWizard cwd={cwd} onComplete={handleSetupComplete} />;
@@ -497,7 +522,7 @@ export default function App({
 				<ErrorDisplay
 					error={new Error(errorMessage ?? 'An unknown error occurred')}
 					onRetry={handleRetry}
-					onExit={exit}
+					onExit={() => void handleExitWithSync()}
 				/>
 			</Box>
 		);
@@ -521,7 +546,7 @@ export default function App({
 		};
 
 		return (
-			<ErrorBoundary onRetry={handleRetry} onExit={exit}>
+			<ErrorBoundary onRetry={handleRetry} onExit={() => void handleExitWithSync()}>
 				<Box flexDirection="column" height={terminalHeight}>
 					<MainLayout
 						selectedEpic={updatedEpic}
@@ -558,6 +583,7 @@ export default function App({
 					<KeyboardHelpFooter
 						isRunning={isRunning}
 						isStopping={isStopping}
+						isSyncing={isSyncing}
 						onStartIterations={!isRunning ? handleIterationConfirm : undefined}
 					/>
 				</Box>
