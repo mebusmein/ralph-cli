@@ -539,3 +539,18 @@ Started: 2026-01-13
   - Use `&quot;` entity for quotes in JSX text content
   - EpicSummary type provides task counts for showing progress: `(closedCount / total) * 100`
 ---
+
+## 2026-01-15 - US-036
+- What was implemented: Branch management utilities for git operations
+- Files changed:
+  - source/utils/branch-utils.ts - New module with all branch utilities
+  - source/utils/index.ts - Added barrel export for branch-utils
+- **Learnings:**
+  - Use `execSync` from `node:child_process` for synchronous git commands
+  - `git rev-parse --abbrev-ref HEAD` returns "HEAD" when on detached HEAD state
+  - `git rev-parse --verify refs/heads/<branch>` checks local branch existence
+  - `git status --porcelain` gives machine-readable output for checking dirty worktree
+  - `git checkout -b <branch> <base>` creates and switches in one command
+  - Slugification pattern: lowercase -> replace non-alphanumeric with hyphens -> dedupe hyphens -> trim hyphens
+  - Use `stdio: ['pipe', 'pipe', 'pipe']` to capture both stdout and stderr
+---
