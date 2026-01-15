@@ -680,3 +680,19 @@ Started: 2026-01-13
   - Auto-close epic with `bd close <epicId>` when all tasks done/blocked
   - `getReadyTasks(epicId)` returns only unblocked open tasks for iteration selection
 ---
+
+## 2026-01-15 - US-046
+- What was implemented: Updated App component for beads workflow with epic selection and branch management
+- Files changed:
+  - source/app.tsx - Complete rewrite for beads workflow integration
+  - source/types/state.ts - Added 'epic-select' to AppView type
+- **Learnings:**
+  - Use `require('node:child_process')` dynamically inside useCallback when execSync is needed for branch switching
+  - The `void` keyword can suppress unused parameter warnings: `void hasPrd` for backward-compat parameters
+  - useBeadsPolling returns empty tasks array when epicId is empty string, so guard with `selectedEpic ? beadsTasks : []`
+  - Branch creation uses `createAndSwitchBranch()` which handles the `git checkout -b` command
+  - External blockers should be fetched separately with `getExternalBlockers()` when epic changes
+  - For epic completion, clear selectedEpic and switch to 'epic-select' view to prompt for next epic
+  - The useInput hook with `{isActive: uncommittedWarning}` enables conditional keyboard handling for confirmation dialogs
+  - Live epic summary updates can be computed from polled tasks data using filtered counts
+---
