@@ -153,3 +153,16 @@ Started: 2026-01-15
   - TaskDetailPanel already existed and renders BeadsIssue with description, status, blockers, blocks info
   - Empty state handling: show "Select a ticket" message when no ticket selected in Ticket tab
 ---
+
+## 2026-01-15 - ralph-cli-8kh
+- Fixed iteration not stopping on COMPLETE signal in beads workflow
+- Root cause: runIterations() beads workflow never checked Claude output for `<promise>COMPLETE</promise>` signal after successful task execution
+- Files changed:
+  - `source/lib/iteration-executor.ts` - Added COMPLETE signal detection after successful task execution, emits `epicComplete` and `complete` with reason `epic_complete`
+- **Learnings:**
+  - Legacy PRD workflow already had getRawTextContent() usage for story detection
+  - streamFormatter.getRawTextContent() returns plain text (ANSI stripped) of all assistant messages
+  - epicComplete event takes epicId (ticketId in this context) as argument
+  - complete event 'epic_complete' reason was already defined in IterationExecutorEvents type
+  - Pre-existing eslint unicorn plugin bug blocks xo tests - build and prettier pass
+---

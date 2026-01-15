@@ -2,8 +2,9 @@ import {EventEmitter} from 'node:events';
 import type {BeadsIssue} from '../types/beads.js';
 import type {UserStory} from '../types/prd.js';
 import type {StoryWithStatus} from '../types/state.js';
+import type {WorkMode} from '../components/TicketSelector.js';
 import {executeClaudeCommand} from './claude-executor.js';
-import {getReadyTasks, getEpicTasks, runBeadsCommand} from './beads-reader.js';
+import {getReadyTasks, runBeadsCommand} from './beads-reader.js';
 import {
 	createStreamFormatter,
 	type FormattedOutput,
@@ -106,12 +107,17 @@ export type BeadsIterationOptions = {
 	iterations: number;
 
 	/**
-	 * ID of the epic to work on
+	 * ID of the ticket to work on (empty string in 'all' mode)
 	 */
-	epicId: string;
+	ticketId: string;
 
 	/**
-	 * Function to generate the prompt for the epic
+	 * Work mode: 'specific' (work on ticket descendants) or 'all' (AI decides)
+	 */
+	workMode: WorkMode;
+
+	/**
+	 * Function to generate the prompt
 	 */
 	promptGenerator: () => string;
 
@@ -181,33 +187,6 @@ export function findNextReadyTask(tasks: BeadsIssue[]): BeadsIssue | undefined {
 	return tasks
 		.filter(task => task.status !== 'closed' && task.blockedBy.length === 0)
 		.sort((a, b) => a.priority - b.priority)[0];
-}
-
-/**
- * Checks if an epic is complete (all tasks closed or all remaining tasks blocked)
- *
- * @param epicId - The epic ID to check
- * @returns Promise resolving to true if epic is complete
- */
-async function isEpicComplete(epicId: string): Promise<boolean> {
-	const tasksResult = await getEpicTasks(epicId);
-	if (!tasksResult.success) {
-		return false;
-	}
-
-	const tasks = tasksResult.data;
-	if (tasks.length === 0) {
-		return true;
-	}
-
-	// All tasks must be either closed or blocked
-	for (const task of tasks) {
-		if (task.status !== 'closed' && task.blockedBy.length === 0) {
-			return false;
-		}
-	}
-
-	return true;
 }
 
 /**
@@ -412,17 +391,16 @@ async function runLegacyIterations(
 function isBeadsOptions(
 	options: IterationOptions,
 ): options is BeadsIterationOptions {
-	return 'epicId' in options;
+	return 'workMode' in options;
 }
 
 /**
  * Runs the iteration execution loop
  *
  * Supports both legacy PRD workflow and new beads workflow.
- * When using beads workflow (epicId provided), it will:
- * - Poll beads for ready tasks before each iteration
- * - Skip iterations when no ready tasks (no Claude call)
- * - Auto-close epic when all tasks are closed or blocked
+ * When using beads workflow:
+ * - In 'specific' mode: Poll beads for ready tasks in ticket descendants
+ * - In 'all' mode: Let Claude query beads and decide what to work on
  * - Add failure comments to issues on task failure
  *
  * @param options - Execution options (BeadsIterationOptions or LegacyIterationOptions)
@@ -444,7 +422,8 @@ export async function runIterations(
 
 	const {
 		iterations,
-		epicId,
+		ticketId,
+		workMode,
 		promptGenerator,
 		logFile,
 		shouldStopAfterIteration,
@@ -462,49 +441,40 @@ export async function runIterations(
 
 		emitter.emit('iterationStart', i, iterations);
 
-		// Poll beads for ready tasks before each iteration
-		const readyResult = await getReadyTasks(epicId);
-		if (!readyResult.success) {
-			emitter.emit('error', readyResult.error.message);
-			emitter.emit('complete', 'error');
-			return;
-		}
-
-		const readyTasks = readyResult.data;
-
-		// No ready tasks - check if epic is complete or all tasks are blocked
-		if (readyTasks.length === 0) {
-			emitter.emit('noReadyTasks');
-
-			// Check if epic is complete (all closed or all blocked)
-			const epicComplete = await isEpicComplete(epicId);
-			if (epicComplete) {
-				// Auto-close the epic
-				await runBeadsCommand(['close', epicId]);
-				emitter.emit('epicComplete', epicId);
-				emitter.emit('complete', 'epic_complete');
+		// In 'all' mode: Don't pre-select tasks - let Claude decide
+		// In 'specific' mode: Poll for ready tasks in ticket descendants
+		if (workMode === 'specific' && ticketId) {
+			// Get ready tasks for specific ticket
+			const readyResult = await getReadyTasks(ticketId);
+			if (!readyResult.success) {
+				emitter.emit('error', readyResult.error.message);
+				emitter.emit('complete', 'error');
 				return;
 			}
 
-			// Tasks exist but all are blocked - stop execution
-			emitter.emit('complete', 'no_ready_tasks');
-			return;
+			const readyTasks = readyResult.data;
+
+			// No ready tasks in specific mode
+			if (readyTasks.length === 0) {
+				emitter.emit('noReadyTasks');
+				emitter.emit('complete', 'no_ready_tasks');
+				return;
+			}
+
+			// Find the highest priority ready task
+			const nextTask = findNextReadyTask(readyTasks);
+
+			if (!nextTask) {
+				emitter.emit('noReadyTasks');
+				emitter.emit('complete', 'no_ready_tasks');
+				return;
+			}
+
+			currentTaskId = nextTask.id;
+			emitter.emit('taskStart', nextTask);
 		}
 
-		// Find the highest priority ready task
-		const nextTask = findNextReadyTask(readyTasks);
-
-		if (!nextTask) {
-			// Shouldn't happen since readyTasks.length > 0, but handle gracefully
-			emitter.emit('noReadyTasks');
-			emitter.emit('complete', 'no_ready_tasks');
-			return;
-		}
-
-		currentTaskId = nextTask.id;
-		emitter.emit('taskStart', nextTask);
-
-		// Generate prompt with epic context
+		// Generate prompt with context
 		const prompt = promptGenerator();
 
 		// Create stream formatter for this iteration
@@ -524,33 +494,43 @@ export async function runIterations(
 
 		if (!result.success) {
 			if (result.error.type === 'aborted') {
-				emitter.emit('taskComplete', currentTaskId, false);
+				if (currentTaskId) {
+					emitter.emit('taskComplete', currentTaskId, false);
+				}
 				emitter.emit('complete', 'stopped');
 				return;
 			}
 
-			// On task failure, add a comment to the issue
+			// On task failure, add a comment to the issue (only in specific mode)
 			const errorMessage = result.error.message;
 			emitter.emit('error', errorMessage);
-			await addTaskComment(currentTaskId, `Iteration failed: ${errorMessage}`);
-			emitter.emit('taskComplete', currentTaskId, false);
+			if (currentTaskId) {
+				await addTaskComment(
+					currentTaskId,
+					`Iteration failed: ${errorMessage}`,
+				);
+				emitter.emit('taskComplete', currentTaskId, false);
+			}
 			// Continue to next iteration even on error
 		} else {
 			// Task execution completed successfully
-			emitter.emit('taskComplete', currentTaskId, true);
+			if (currentTaskId) {
+				emitter.emit('taskComplete', currentTaskId, true);
+			}
+
+			// Check for epic completion signal in Claude's output
+			const rawOutput = streamFormatter.getRawTextContent();
+			if (rawOutput.includes('<promise>COMPLETE</promise>')) {
+				emitter.emit('epicComplete', ticketId);
+				emitter.emit('complete', 'epic_complete');
+				return;
+			}
 		}
 
 		emitter.emit('iterationComplete', i);
 
-		// Poll beads after iteration to check if epic is now complete
-		const postIterationComplete = await isEpicComplete(epicId);
-		if (postIterationComplete) {
-			// Auto-close the epic
-			await runBeadsCommand(['close', epicId]);
-			emitter.emit('epicComplete', epicId);
-			emitter.emit('complete', 'epic_complete');
-			return;
-		}
+		// Reset current task for next iteration
+		currentTaskId = null;
 
 		// Check if we should stop after this iteration (graceful stop)
 		if (shouldStopAfterIteration?.()) {
