@@ -599,3 +599,18 @@ Started: 2026-01-13
   - Use separate useEffects for: syncing external selectedTaskId, resetting index on tasks change, notifying parent
   - Fixed overhead calculation for title truncation increased to 20 chars (status + type + blocked + ID + separator)
 ---
+
+## 2026-01-15 - US-040
+- What was implemented: Updated MainLayout for epic-based workflow with new props and view switching
+- Files changed:
+  - source/components/MainLayout.tsx - Added epic header, ExternalBlockers section, view switching for right panel
+  - source/components/index.ts - Added RightPanelView type export
+  - source/app.tsx - Added mockEpic and selectedTask to bridge old PRD workflow to new MainLayout props
+- **Learnings:**
+  - Use `RightPanelView` type to switch between 'task-detail' and 'output' views in right panel
+  - Epic header can show progress as `(closedCount/totalCount tasks • progress%)` format
+  - Reserve extra lines for ExternalBlockers section in left panel height calculation
+  - Use mockEpic pattern for gradual migration: create EpicSummary from existing PRD story data
+  - When changing component props, update dependent components in same commit to maintain typecheck
+  - Unicode ◎ symbol works well as epic indicator in headers
+---
