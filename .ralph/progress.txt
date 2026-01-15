@@ -726,3 +726,15 @@ Started: 2026-01-13
   - Issue types: epic, feature, task, bug (not user story)
   - SKILL.md files are markdown-only, no code changes needed - typecheck always passes
 ---
+
+## 2026-01-15 - US-050
+- What was implemented: Cleaned up prompt-loader.ts by removing story-specific prdFile references
+- Files changed:
+  - source/lib/prompt-loader.ts - Removed prdFile from PromptVariables type, removed $PRD_FILE expansion
+- **Learnings:**
+  - PromptVariables type simplified to: `progressFile`, `epicId?`, `epicTitle?`
+  - Variable expansion now only supports: `$PROGRESS_FILE`, `$EPIC_ID`, `$EPIC_TITLE`
+  - The createPromptGenerator function accepts PromptGeneratorOptions object with epicId and epicTitle
+  - Backward compatibility for string cwd parameter preserved via union type check
+  - RalphPaths.prdFile still exists in config.ts but is no longer used by prompt-loader
+---

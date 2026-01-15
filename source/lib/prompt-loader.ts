@@ -27,12 +27,6 @@ export type PromptLoadResult = {
  */
 export type PromptVariables = {
 	/**
-	 * Path to the PRD file
-	 * @deprecated Use epicId and epicTitle for beads workflow
-	 */
-	prdFile: string;
-
-	/**
 	 * Path to the progress file
 	 */
 	progressFile: string;
@@ -52,7 +46,6 @@ export type PromptVariables = {
  * Expands variables in a prompt template
  *
  * Supported variables:
- * - $PRD_FILE - Path to the prd.json file (deprecated)
  * - $PROGRESS_FILE - Path to the progress.txt file
  * - $EPIC_ID - ID of the epic being worked on
  * - $EPIC_TITLE - Title of the epic being worked on
@@ -61,9 +54,7 @@ export function expandPromptVariables(
 	template: string,
 	variables: PromptVariables,
 ): string {
-	let result = template
-		.replaceAll('$PRD_FILE', variables.prdFile)
-		.replaceAll('$PROGRESS_FILE', variables.progressFile);
+	let result = template.replaceAll('$PROGRESS_FILE', variables.progressFile);
 
 	// Add epic variables for beads workflow
 	if (variables.epicId !== undefined) {
@@ -88,7 +79,6 @@ export function loadPromptTemplate(
 ): PromptLoadResult {
 	const paths = getRalphPaths(cwd);
 	const variables: PromptVariables = {
-		prdFile: paths.prdFile,
 		progressFile: paths.progressFile,
 	};
 
@@ -152,7 +142,6 @@ export function createPromptGenerator(
 	const paths = getRalphPaths(cwd);
 
 	const variables: PromptVariables = {
-		prdFile: paths.prdFile,
 		progressFile: paths.progressFile,
 		epicId,
 		epicTitle,
