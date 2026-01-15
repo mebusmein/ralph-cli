@@ -664,3 +664,19 @@ Started: 2026-01-13
   - Issue discovery instructions help Claude create and manage blockers during implementation
   - The `bd list --parent=<id> --status=open` command gets all open tasks within an epic
 ---
+
+## 2026-01-15 - US-045
+- What was implemented: Rewrote iteration-executor for beads workflow with backward compatibility
+- Files changed:
+  - source/lib/iteration-executor.ts - Complete rewrite for beads integration with legacy support
+- **Learnings:**
+  - Use discriminated union types (`BeadsIterationOptions | LegacyIterationOptions`) for migration periods
+  - Type guard function `isBeadsOptions()` with `'epicId' in options` enables TypeScript narrowing
+  - New events added: `noReadyTasks`, `taskComplete`, `epicComplete`, `taskStart`
+  - Legacy events preserved for backward compat: `storyStart`, `storyComplete`, `storyMismatch`, `storyDetectionFailed`
+  - `runLegacyIterations()` function delegates to old PRD-based workflow when `prdPath` is provided
+  - Epic completion logic: check if all tasks are closed OR all remaining tasks are blocked
+  - Use `bd comments add <taskId> <message>` to record iteration failures on tasks
+  - Auto-close epic with `bd close <epicId>` when all tasks done/blocked
+  - `getReadyTasks(epicId)` returns only unblocked open tasks for iteration selection
+---

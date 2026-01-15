@@ -238,8 +238,8 @@
 				"typecheck passes"
 			],
 			"priority": 14,
-			"passes": false,
-			"notes": ""
+			"passes": true,
+			"notes": "Legacy PRD workflow preserved via runLegacyIterations for backward compatibility with existing app.tsx until US-046"
 		},
 		{
 			"id": "US-046",
