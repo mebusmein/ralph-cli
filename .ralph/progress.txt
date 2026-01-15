@@ -494,3 +494,20 @@ Started: 2026-01-13
   - The `parent` field in BeadsIssue is `string | undefined` to handle top-level issues
   - Created branch `ralph/beads-migration` from main for the migration work
 ---
+
+## 2026-01-15 - US-033
+- What was implemented: Beads reader module for bd command execution
+- Files changed:
+  - source/lib/beads-reader.ts - New module with bd command execution and parsing
+  - source/lib/index.ts - Added barrel export for beads-reader
+- **Learnings:**
+  - bd CLI uses `--json` global flag for JSON output (not `--format=json`)
+  - bd JSON output structure: `issue_type` (not `type`), `blocked_by` array for blockers
+  - bd `list --parent=<id>` gets children, `ready --parent=<id>` gets unblocked children
+  - bd `blocked --parent=<id>` returns issues with `blocked_by` array containing blocker IDs
+  - bd `show <id> --refs` shows reverse references (what depends on this issue)
+  - bd creates child IDs with dot notation: `epic-id.1`, `epic-id.2`, etc.
+  - Dependencies come from `dependencies` array with `dependency_type: 'blocks' | 'parent-child'`
+  - Use `existsSync('.beads')` to check if beads is initialized before running commands
+  - Convert raw bd output to typed BeadsIssue using a `toBeadsIssue()` helper function
+---
