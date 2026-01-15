@@ -554,3 +554,17 @@ Started: 2026-01-13
   - Slugification pattern: lowercase -> replace non-alphanumeric with hyphens -> dedupe hyphens -> trim hyphens
   - Use `stdio: ['pipe', 'pipe', 'pipe']` to capture both stdout and stderr
 ---
+
+## 2026-01-15 - US-037
+- What was implemented: TaskDetailPanel component for displaying beads task details
+- Files changed:
+  - source/components/TaskDetailPanel.tsx - New component with task info, description, blockers
+  - source/components/index.ts - Added barrel export for TaskDetailPanel
+- **Learnings:**
+  - Use default values in destructuring (`const [, indent = '', checked = ' '] = match`) to satisfy TypeScript strict undefined checks
+  - Unicode checkbox characters: `☑` (checked) and `☐` (unchecked) work well in terminal UI
+  - Markdown checklist regex: `/^(\s*)-\s*\[([ xX])\]\s*(.*)$/` captures indent, check state, and text
+  - Reuse `calculateVisibleLines` from text-utils for scrollable description content
+  - Status color mapping: closed=green, in_progress=yellow, open=gray follows traffic light convention
+  - Use `dimColor` prop on Text for struck-through appearance on completed checklist items
+---
