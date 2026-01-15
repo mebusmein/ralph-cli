@@ -1,6 +1,7 @@
 import React from 'react';
 import {Text, Box} from 'ink';
 import type {SetupCheckItem, SetupCheckResult} from '../types/index.js';
+import type {SetupPhase} from '../types/state.js';
 import type {
 	ScaffoldResult,
 	BeadsInitResult,
@@ -16,19 +17,9 @@ export type ScaffoldingStatus = {
 	beads?: BeadsInitResult;
 };
 
-/**
- * Setup wizard step
- */
-export type SetupStep =
-	| 'checking'
-	| 'prompt'
-	| 'scaffolding'
-	| 'complete'
-	| 'error';
-
 type Props = {
-	/** Current setup step */
-	step: SetupStep;
+	/** Current setup phase */
+	phase: SetupPhase;
 	/** Result of setup check (for 'prompt' step) */
 	checkResult?: SetupCheckResult | null;
 	/** Status of scaffolding operations */
@@ -169,14 +160,14 @@ function ScaffoldItemList({
  * Displays the current setup state in a panel format suitable for the unified layout
  */
 export default function SetupWizardPanel({
-	step,
+	phase,
 	checkResult,
 	scaffoldStatus = {},
 	errorMessage,
 	contentWidth,
 }: Props): React.ReactElement {
-	// Checking step
-	if (step === 'checking') {
+	// Checking phase
+	if (phase === 'checking') {
 		return (
 			<Box
 				flexDirection="column"
@@ -193,8 +184,8 @@ export default function SetupWizardPanel({
 		);
 	}
 
-	// Prompt step - show setup status and prompt
-	if (step === 'prompt' && checkResult) {
+	// Prompt phase - show setup status and prompt
+	if (phase === 'prompt' && checkResult) {
 		return (
 			<Box
 				flexDirection="column"
@@ -224,8 +215,8 @@ export default function SetupWizardPanel({
 		);
 	}
 
-	// Scaffolding step - show progress
-	if (step === 'scaffolding') {
+	// Scaffolding phase - show progress
+	if (phase === 'scaffolding') {
 		return (
 			<Box
 				flexDirection="column"
@@ -245,8 +236,8 @@ export default function SetupWizardPanel({
 		);
 	}
 
-	// Complete step
-	if (step === 'complete') {
+	// Complete phase
+	if (phase === 'complete') {
 		const wasSetupRun = Object.keys(scaffoldStatus).length > 0;
 		return (
 			<Box
@@ -286,8 +277,8 @@ export default function SetupWizardPanel({
 		);
 	}
 
-	// Error step
-	if (step === 'error') {
+	// Error phase
+	if (phase === 'error') {
 		return (
 			<Box
 				flexDirection="column"

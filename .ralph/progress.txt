@@ -51,3 +51,17 @@ Started: 2026-01-15
   - Components use Box with borderStyle="round" and borderColor="gray" for panel styling
   - Type icons: ◎ epic, ★ feature, ⚠ bug, ◆ task (consistent across TicketSelector, MainLayout)
 ---
+
+## 2026-01-15 - ralph-cli-68m
+- Added `SetupPhase` type to state.ts for unified layout setup wizard states
+- Deprecated `AppView` type with JSDoc `@deprecated` annotation
+- Updated SetupWizardPanel.tsx to use `SetupPhase` instead of local `SetupStep` type
+- Renamed prop from `step` to `phase` in SetupWizardPanel for consistency
+- Files changed:
+  - `source/types/state.ts` - Added SetupPhase type, deprecated AppView
+  - `source/components/SetupWizardPanel.tsx` - Import SetupPhase from types, rename step→phase
+- **Learnings:**
+  - Types are exported through `source/types/index.ts` which re-exports all from state.js
+  - SetupWizardPanel uses discriminated union pattern with conditional rendering based on phase
+  - Pre-existing test infrastructure issues (eslint unicorn plugin) unrelated to this task
+---

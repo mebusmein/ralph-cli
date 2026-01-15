@@ -13,6 +13,17 @@ export type StoryWithStatus = UserStory & {
 };
 
 /**
- * Represents the current view/screen of the application
+ * Setup wizard phases for unified layout
  */
-export type AppView = 'setup' | 'epic-select' | 'no-prd' | 'main' | 'error';
+export type SetupPhase =
+	| 'checking'
+	| 'prompt'
+	| 'scaffolding'
+	| 'complete'
+	| 'error';
+
+/**
+ * Represents the current view/screen of the application
+ * @deprecated Use unified layout with SetupPhase and content-based rendering instead
+ */
+export type AppView = 'setup' | 'ticket-select' | 'main' | 'error';
