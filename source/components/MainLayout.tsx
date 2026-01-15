@@ -2,28 +2,32 @@ import React from 'react';
 import {Box} from 'ink';
 import TicketList from './TicketList.js';
 import TabPanel, {type TabId} from './TabPanel.js';
-import type {StoryWithStatus} from '../types/index.js';
+import type {BeadsIssue} from '../types/beads.js';
 
 type Props = {
-	stories: StoryWithStatus[];
-	currentStoryId: string | null;
+	tasks: BeadsIssue[];
+	selectedTaskId?: string | null;
+	onTaskSelect?: (task: BeadsIssue) => void;
 	activeTab: TabId;
 	outputLines: string[];
 	progressFilePath: string;
 	maxLines?: number;
 	height?: number;
 	terminalWidth?: number;
+	isTaskListActive?: boolean;
 };
 
 export default function MainLayout({
-	stories,
-	currentStoryId,
+	tasks,
+	selectedTaskId,
+	onTaskSelect,
 	activeTab,
 	outputLines,
 	progressFilePath,
 	maxLines = 20,
 	height,
 	terminalWidth = 80,
+	isTaskListActive = true,
 }: Props) {
 	// Calculate content panel width (70% of terminal width minus padding/borders)
 	// Left column is 30%, right is 70%
@@ -46,10 +50,12 @@ export default function MainLayout({
 			{/* Left column: TicketList (~30%) */}
 			<Box flexDirection="column" width="30%" paddingRight={1}>
 				<TicketList
-					stories={stories}
-					currentStoryId={currentStoryId}
+					tasks={tasks}
+					selectedTaskId={selectedTaskId}
+					onTaskSelect={onTaskSelect}
 					maxHeight={effectiveMaxLines}
 					availableWidth={leftColumnWidth}
+					isActive={isTaskListActive}
 				/>
 			</Box>
 

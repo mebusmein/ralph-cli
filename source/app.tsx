@@ -19,6 +19,31 @@ import {
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
 import type {AppView, StoryWithStatus} from './types/state.js';
+import type {BeadsIssue} from './types/beads.js';
+
+/**
+ * Convert StoryWithStatus to BeadsIssue for MainLayout compatibility
+ * This is a temporary bridge until full beads migration is complete
+ */
+function storyToBeadsIssue(story: StoryWithStatus): BeadsIssue {
+	const statusMap: Record<string, BeadsIssue['status']> = {
+		passed: 'closed',
+		'in-progress': 'in_progress',
+		pending: 'open',
+		failed: 'open',
+	};
+	return {
+		id: story.id,
+		title: story.title,
+		type: 'task',
+		status: statusMap[story.status] ?? 'open',
+		priority: story.priority as BeadsIssue['priority'],
+		description: '',
+		blockedBy: [],
+		blocks: [],
+		parent: undefined,
+	};
+}
 
 type Props = {
 	cwd?: string;
@@ -349,13 +374,16 @@ export default function App({
 		);
 	}
 
+	// Convert stories to BeadsIssue format for MainLayout
+	const tasks = useMemo(() => stories.map(storyToBeadsIssue), [stories]);
+
 	if (view === 'main') {
 		return (
 			<ErrorBoundary onRetry={handleRetry} onExit={exit}>
 				<Box flexDirection="column" height={terminalHeight}>
 					<MainLayout
-						stories={stories}
-						currentStoryId={currentStoryId}
+						tasks={tasks}
+						selectedTaskId={currentStoryId}
 						activeTab={activeTab}
 						outputLines={outputLines}
 						progressFilePath={paths.progressFile}
