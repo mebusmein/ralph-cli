@@ -525,3 +525,17 @@ Started: 2026-01-13
   - Default parameter value `intervalMs = 2500` provides sensible default in destructuring
   - Cleanup function clears interval with `clearInterval(intervalId)` to prevent memory leaks
 ---
+
+## 2026-01-15 - US-035
+- What was implemented: EpicSelector TUI component for selecting epics
+- Files changed:
+  - source/components/EpicSelector.tsx - New component with epic list, progress bars, keyboard nav
+  - source/components/index.ts - Added barrel export for EpicSelector
+- **Learnings:**
+  - Use Ink's `inverse` prop on Text for highlighted selection appearance
+  - Visual progress bars can use Unicode block characters: `█` (filled) and `░` (empty)
+  - Prefix unused callback parameters with underscore (`_input`) to avoid TS6133 error
+  - Component should handle all states: loading, error, empty list, and normal display
+  - Use `&quot;` entity for quotes in JSX text content
+  - EpicSummary type provides task counts for showing progress: `(closedCount / total) * 100`
+---
