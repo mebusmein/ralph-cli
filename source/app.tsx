@@ -1,13 +1,17 @@
 import React, {useState, useCallback, useEffect, useRef, useMemo} from 'react';
 import {Text, Box, useApp, useStdout, useInput} from 'ink';
 import {
-	SetupWizard,
 	MainLayout,
 	KeyboardHelpFooter,
 	ErrorBoundary,
 	ErrorDisplay,
-	EpicSelector,
+	TicketSelector,
+	SetupWizardPanel,
+	WelcomePanel,
 	type TabId,
+	type TicketSelection,
+	type WorkMode,
+	type ScaffoldingStatus,
 } from './components/index.js';
 import {useKeyboardControls, useBeadsPolling} from './hooks/index.js';
 import {
@@ -17,17 +21,17 @@ import {
 	type FormattedOutput,
 	getExternalBlockers,
 	runBeadsSync,
+	getTickets,
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
 import {
-	deriveBranchName,
-	getCurrentBranch,
-	branchExists,
-	createAndSwitchBranch,
-	hasUncommittedChanges,
-} from './utils/branch-utils.js';
-import type {AppView} from './types/state.js';
-import type {BeadsIssue, EpicSummary} from './types/beads.js';
+	createRalphDirectory,
+	createPromptTemplate,
+	createProgressTemplate,
+	initializeBeads,
+} from './utils/setup-scaffolding.js';
+import type {SetupPhase, SetupCheckResult} from './types/index.js';
+import type {BeadsIssue, TicketSummary} from './types/beads.js';
 
 type Props = {
 	cwd?: string;
@@ -70,10 +74,16 @@ export default function App({
 	const reservedRows = 5;
 	const availableHeight = Math.max(10, terminalHeight - reservedRows);
 
-	// Application state
-	const [view, setView] = useState<AppView>('setup');
+	// Application state - unified layout with setupPhase
+	const [setupPhase, setSetupPhase] = useState<SetupPhase | null>('checking');
+	const [setupCheckResult, setSetupCheckResult] =
+		useState<SetupCheckResult | null>(null);
+	const [scaffoldStatus, setScaffoldStatus] = useState<ScaffoldingStatus>({});
 	const [activeTab, setActiveTab] = useState<TabId>('output');
-	const [selectedEpic, setSelectedEpic] = useState<EpicSummary | null>(null);
+	const [selectedTicket, setSelectedTicket] = useState<TicketSummary | null>(
+		null,
+	);
+	const [workMode, setWorkMode] = useState<WorkMode>('specific');
 	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 	const [externalBlockers, setExternalBlockers] = useState<BeadsIssue[]>([]);
 	const [outputMessages, setOutputMessages] = useState<FormattedOutput[]>([]);
@@ -84,13 +94,11 @@ export default function App({
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [lastIterations, setLastIterations] = useState<number>(1);
 
-	// Branch switch confirmation state
-	const [pendingBranchSwitch, setPendingBranchSwitch] = useState<{
-		epic: EpicSummary;
-		branchName: string;
-		needsCreation: boolean;
-	} | null>(null);
-	const [uncommittedWarning, setUncommittedWarning] = useState(false);
+	// Ticket selector state (for unified left panel)
+	const [selectorTickets, setSelectorTickets] = useState<TicketSummary[]>([]);
+	const [selectorIndex, setSelectorIndex] = useState(0);
+	const [selectorLoading, setSelectorLoading] = useState(false);
+	const [selectorError, setSelectorError] = useState<string | null>(null);
 
 	// AbortController for immediate cancellation
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -104,18 +112,25 @@ export default function App({
 		[outputMessages],
 	);
 
-	// Use beads polling when we have a selected epic and are on main view
+	// Determine if we're in the main execution view (no setup phase, ticket selected or all mode)
+	const isMainView =
+		setupPhase === null && (workMode === 'all' || selectedTicket !== null);
+
+	// Use beads polling when we're in main view
+	// In 'all' mode, we poll all open tickets
+	// In 'specific' mode, we poll descendants of the selected ticket
 	const {tasks: beadsTasks, loading: tasksLoading} = useBeadsPolling({
-		epicId: selectedEpic?.id ?? '',
+		ticketId: selectedTicket?.id ?? '',
+		workMode,
 		intervalMs: 2500,
 	});
 
-	// Only use polled tasks when we have a selected epic
-	const tasks = selectedEpic ? beadsTasks : [];
+	// Use polled tasks based on work mode
+	const tasks = workMode === 'all' || selectedTicket ? beadsTasks : [];
 
-	// Fetch external blockers when epic changes
+	// Fetch external blockers when ticket changes (only in specific mode)
 	useEffect(() => {
-		if (!selectedEpic) {
+		if (!selectedTicket || workMode === 'all') {
 			setExternalBlockers([]);
 			return;
 		}
@@ -123,7 +138,7 @@ export default function App({
 		let mounted = true;
 
 		async function fetchBlockers() {
-			const result = await getExternalBlockers(selectedEpic!.id);
+			const result = await getExternalBlockers(selectedTicket!.id);
 			if (mounted && result.success) {
 				setExternalBlockers(result.data);
 			}
@@ -134,7 +149,7 @@ export default function App({
 		return () => {
 			mounted = false;
 		};
-	}, [selectedEpic]);
+	}, [selectedTicket, workMode]);
 
 	// Find the selected task from selectedTaskId
 	const selectedTask = useMemo(
@@ -142,102 +157,128 @@ export default function App({
 		[tasks, selectedTaskId],
 	);
 
-	// Handle epic selection - check branch and switch/create
-	const handleEpicSelect = useCallback((epic: EpicSummary) => {
-		const branchName = deriveBranchName(epic.title);
-		const currentBranch = getCurrentBranch();
+	// Handle ticket selection - transition to main view
+	const handleTicketSelect = useCallback((selection: TicketSelection) => {
+		const {ticket, workMode: selectedWorkMode} = selection;
 
-		// Already on the correct branch
-		if (currentBranch === branchName) {
-			setSelectedEpic(epic);
-			setView('main');
-			return;
-		}
-
-		// Check for uncommitted changes
-		if (hasUncommittedChanges()) {
-			setUncommittedWarning(true);
-			setPendingBranchSwitch({
-				epic,
-				branchName,
-				needsCreation: !branchExists(branchName),
-			});
-			return;
-		}
-
-		// Proceed with branch switch
-		proceedWithBranchSwitch(epic, branchName);
+		setWorkMode(selectedWorkMode);
+		setSelectedTicket(selectedWorkMode === 'all' ? null : ticket);
+		// Note: Branch switching logic removed - handled by separate task ralph-cli-dm6
 	}, []);
 
-	// Proceed with branch switch after user confirmation or no uncommitted changes
-	const proceedWithBranchSwitch = useCallback(
-		(epic: EpicSummary, branchName: string) => {
-			const needsCreation = !branchExists(branchName);
+	// Handle back to ticket selection (from main view)
+	const handleBackToTicketSelect = useCallback(() => {
+		if (isRunning) return; // Don't allow back during execution
+		setSelectedTicket(null);
+		setWorkMode('specific');
+		setSelectorIndex(0);
+	}, [isRunning]);
 
-			if (needsCreation) {
-				const result = createAndSwitchBranch(branchName);
-				if (!result.success) {
-					setErrorMessage(`Failed to create branch: ${result.error}`);
-					setView('error');
-					return;
-				}
+	// Run scaffolding for setup
+	const runScaffolding = useCallback(() => {
+		setSetupPhase('scaffolding');
+
+		try {
+			const ralphDir = createRalphDirectory(cwd);
+			setScaffoldStatus(prev => ({...prev, ralphDir}));
+
+			const promptFile = createPromptTemplate(cwd);
+			setScaffoldStatus(prev => ({...prev, promptFile}));
+
+			const progressFile = createProgressTemplate(cwd);
+			setScaffoldStatus(prev => ({...prev, progressFile}));
+
+			const beads = initializeBeads(cwd);
+			setScaffoldStatus(prev => ({...prev, beads}));
+
+			const allSuccess =
+				ralphDir.success &&
+				promptFile.success &&
+				progressFile.success &&
+				beads.success;
+
+			if (allSuccess) {
+				setSetupPhase('complete');
 			} else {
-				// Switch to existing branch
-				try {
-					const {execSync} = require('node:child_process');
-					execSync(`git checkout ${branchName}`, {
-						encoding: 'utf8',
-						stdio: ['pipe', 'pipe', 'pipe'],
-					});
-				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : 'Unknown error';
-					setErrorMessage(`Failed to switch branch: ${message}`);
-					setView('error');
-					return;
-				}
+				setSetupPhase('error');
+				setErrorMessage('Some setup steps failed. See details above.');
 			}
+		} catch (error) {
+			setSetupPhase('error');
+			setErrorMessage(
+				error instanceof Error ? error.message : 'Unknown error occurred',
+			);
+		}
+	}, [cwd]);
 
-			setSelectedEpic(epic);
-			setUncommittedWarning(false);
-			setPendingBranchSwitch(null);
-			setView('main');
-		},
-		[],
-	);
-
-	// Handle uncommitted changes warning response
+	// Setup keyboard handling (for setup phases)
 	useInput(
 		(input, key) => {
-			if (!uncommittedWarning || !pendingBranchSwitch) return;
-
-			if (input.toLowerCase() === 'y' || key.return) {
-				// User wants to proceed anyway
-				proceedWithBranchSwitch(
-					pendingBranchSwitch.epic,
-					pendingBranchSwitch.branchName,
-				);
-			} else if (input.toLowerCase() === 'n' || key.escape) {
-				// User cancelled - go back to epic selection
-				setUncommittedWarning(false);
-				setPendingBranchSwitch(null);
+			if (setupPhase === 'prompt') {
+				if (input.toLowerCase() === 'y') {
+					runScaffolding();
+				} else if (input.toLowerCase() === 'n' || key.escape) {
+					exit();
+				}
+			} else if (setupPhase === 'complete') {
+				if (key.return || input.toLowerCase() === 'c') {
+					// Move to ticket selection
+					setSetupPhase(null);
+					// Load tickets
+					setSelectorLoading(true);
+					void getTickets().then(result => {
+						if (result.success) {
+							setSelectorTickets(result.data);
+						} else {
+							setSelectorError(result.error.message);
+						}
+						setSelectorLoading(false);
+					});
+				} else if (key.escape || input.toLowerCase() === 'q') {
+					exit();
+				}
+			} else if (setupPhase === 'error') {
+				if (key.return || key.escape) {
+					exit();
+				}
 			}
 		},
-		{isActive: uncommittedWarning},
+		{isActive: setupPhase !== null},
 	);
 
-	// Handle setup wizard completion
-	const handleSetupComplete = useCallback((hasPrd: boolean) => {
-		// After setup, always go to epic selection (beads workflow)
-		// The hasPrd parameter is kept for backward compat but we use beads now
-		void hasPrd; // Suppress unused warning
-		setView('epic-select');
-	}, []);
+	// Ticket selector keyboard handling (when in selection mode)
+	const isTicketSelectMode =
+		setupPhase === null && selectedTicket === null && workMode === 'specific';
+	const totalSelectorItems = 1 + selectorTickets.length;
+
+	useInput(
+		(_input, key) => {
+			if (selectorLoading) return;
+
+			if (key.downArrow) {
+				setSelectorIndex(prev => Math.min(prev + 1, totalSelectorItems - 1));
+			} else if (key.upArrow) {
+				setSelectorIndex(prev => Math.max(prev - 1, 0));
+			} else if (key.return) {
+				if (selectorIndex === 0) {
+					handleTicketSelect({ticket: null, workMode: 'all'});
+				} else {
+					const ticket = selectorTickets[selectorIndex - 1];
+					if (ticket) {
+						handleTicketSelect({ticket, workMode: 'specific'});
+					}
+				}
+			}
+		},
+		{isActive: isTicketSelectMode},
+	);
 
 	// Handle iteration confirmation (start execution)
 	const handleIterationConfirm = useCallback(
 		(iterations: number) => {
-			if (!selectedEpic) return;
+			// In specific mode, we need a selected ticket
+			// In all mode, we run without a specific ticket
+			if (workMode === 'specific' && !selectedTicket) return;
 
 			setIsRunning(true);
 			setOutputMessages([]);
@@ -292,16 +333,6 @@ export default function App({
 				]);
 			});
 
-			emitter.on('epicComplete', epicId => {
-				setOutputMessages(prev => [
-					...prev,
-					{
-						source: 'assistant',
-						content: `\n--- Epic ${epicId} complete! ---\n`,
-					},
-				]);
-			});
-
 			emitter.on('complete', reason => {
 				setIsRunning(false);
 				setIsStopping(false);
@@ -311,19 +342,12 @@ export default function App({
 				const reasonMessages: Record<string, string> = {
 					finished: 'All iterations completed',
 					all_closed: 'All tasks closed!',
-					epic_complete: 'Epic complete! All tasks done.',
 					no_ready_tasks: 'No ready tasks - all blocked',
 					stopped: 'Stopped by user',
 					error: 'Stopped due to error',
 				};
 				setCompletionReason(reasonMessages[reason] ?? reason);
-
-				// After epic completion, prompt for next epic selection
-				if (reason === 'epic_complete') {
-					// Clear the selected epic to allow new selection
-					setSelectedEpic(null);
-					setView('epic-select');
-				}
+				// No auto-navigation on completion - user decides when done
 			});
 
 			emitter.on('error', errorMsg => {
@@ -336,14 +360,16 @@ export default function App({
 			// Start execution with beads workflow
 			const promptGenerator = createPromptGenerator({
 				cwd,
-				epicId: selectedEpic.id,
-				epicTitle: selectedEpic.title,
+				ticketId: selectedTicket?.id ?? '',
+				ticketTitle: selectedTicket?.title ?? '',
+				workMode,
 			});
 
 			runIterations(
 				{
 					iterations,
-					epicId: selectedEpic.id,
+					ticketId: selectedTicket?.id ?? '',
+					workMode,
 					promptGenerator,
 					logFile,
 					shouldStopAfterIteration: () => stopAfterIterationRef.current,
@@ -357,21 +383,28 @@ export default function App({
 				setIsRunning(false);
 				setIsStopping(false);
 				abortControllerRef.current = null;
-				setView('error');
+				// Error is shown inline via errorMessage state
 			});
 		},
-		[cwd, selectedEpic, logFile],
+		[cwd, selectedTicket, workMode, logFile],
 	);
 
 	// Handle retry after error
 	const handleRetry = useCallback(() => {
 		setErrorMessage(null);
-		if (selectedEpic) {
+		if (workMode === 'all' || selectedTicket) {
 			handleIterationConfirm(lastIterations);
 		} else {
-			setView('epic-select');
+			// Go back to ticket selection
+			handleBackToTicketSelect();
 		}
-	}, [handleIterationConfirm, lastIterations, selectedEpic]);
+	}, [
+		handleIterationConfirm,
+		lastIterations,
+		selectedTicket,
+		workMode,
+		handleBackToTicketSelect,
+	]);
 
 	// Handle stop after iteration (graceful stop - doesn't kill current process)
 	const handleStopAfterIteration = useCallback(() => {
@@ -386,41 +419,56 @@ export default function App({
 		abortControllerRef.current?.abort();
 	}, []);
 
-	// Keyboard controls (only enabled when on main view)
+	// Keyboard controls (only enabled when in main execution view)
 	useKeyboardControls(
 		{
 			onTabChange: setActiveTab,
 			onStopAfterIteration: handleStopAfterIteration,
 			onImmediateCancel: handleImmediateCancel,
+			onBackToTicketSelect: handleBackToTicketSelect,
 		},
 		{
 			activeTab,
-			enabled: view === 'main',
+			enabled: isMainView,
 		},
 	);
 
-	// Auto-start if initialIterations provided and we're on the main view
+	// Auto-start if initialIterations provided and we're in main view
 	useEffect(() => {
-		if (
-			view === 'main' &&
+		const canStart =
+			isMainView &&
 			!isRunning &&
 			initialIterations !== undefined &&
-			selectedEpic
-		) {
+			(workMode === 'all' || selectedTicket);
+
+		if (canStart) {
 			handleIterationConfirm(initialIterations);
 		}
 		// Only run once when transitioning to main view with initialIterations
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [view, selectedEpic]);
+	}, [isMainView, selectedTicket, workMode]);
 
 	// Initial setup check
 	useEffect(() => {
 		const setupResult = checkSetup(cwd);
+		setSetupCheckResult(setupResult);
+
 		if (setupResult.isComplete && setupResult.isBeadsInitialized) {
-			// Go to epic selection instead of loading PRD
-			setView('epic-select');
+			// Setup complete - load tickets and skip to selection
+			setSetupPhase(null);
+			setSelectorLoading(true);
+			void getTickets().then(result => {
+				if (result.success) {
+					setSelectorTickets(result.data);
+				} else {
+					setSelectorError(result.error.message);
+				}
+				setSelectorLoading(false);
+			});
+		} else {
+			// Show setup prompt
+			setSetupPhase('prompt');
 		}
-		// If setup is not complete, stay in 'setup' view for SetupWizard
 	}, [cwd]);
 
 	// Run beads sync on exit
@@ -446,153 +494,181 @@ export default function App({
 		};
 	}, []);
 
-	// Render based on current view
-	if (view === 'setup') {
-		return <SetupWizard cwd={cwd} onComplete={handleSetupComplete} />;
-	}
+	// Calculate content panel width for right column
+	const rightPanelWidth = Math.floor(terminalWidth * 0.7) - 5;
 
-	if (view === 'epic-select') {
-		// Show uncommitted changes warning if needed
-		if (uncommittedWarning && pendingBranchSwitch) {
+	// Update ticket summary with live data (only in specific mode and main view)
+	const updatedTicket: TicketSummary | null =
+		isMainView && selectedTicket
+			? {
+					...selectedTicket,
+					openCount: tasks.filter(t => t.status !== 'closed').length,
+					closedCount: tasks.filter(t => t.status === 'closed').length,
+					progress:
+						tasks.length > 0
+							? Math.round(
+									(tasks.filter(t => t.status === 'closed').length /
+										tasks.length) *
+										100,
+							  )
+							: 0,
+					hasBlockedTasks: tasks.some(t => t.blockedBy.length > 0),
+			  }
+			: null;
+
+	// Calculate left content based on state
+	const leftContent = useMemo(() => {
+		// During setup phases - no left content (full-width setup panel)
+		if (setupPhase !== null) {
+			return null;
+		}
+
+		// Ticket selection mode - show embedded selector
+		if (!isMainView) {
 			return (
-				<Box flexDirection="column" padding={1}>
-					<Text color="cyan" bold>
-						Ralph CLI
-					</Text>
-					<Text> </Text>
-					<Text color="yellow" bold>
-						Warning: Uncommitted changes detected
-					</Text>
-					<Text> </Text>
-					<Text>You have uncommitted changes in your working directory.</Text>
-					<Text>
-						Switching to branch &quot;{pendingBranchSwitch.branchName}&quot;
-						{pendingBranchSwitch.needsCreation ? ' (will be created)' : ''} may
-						cause conflicts.
-					</Text>
-					<Text> </Text>
-					<Text color="gray">
-						Press Y to proceed anyway, N to cancel and commit your changes
-						first.
-					</Text>
-				</Box>
+				<TicketSelector
+					embedded
+					selectedIndex={selectorIndex}
+					tickets={selectorTickets}
+					isLoading={selectorLoading}
+					error={selectorError}
+					onSelect={handleTicketSelect}
+				/>
 			);
 		}
 
-		return (
-			<Box flexDirection="column" padding={1}>
-				<Text color="cyan" bold>
-					Ralph CLI
-				</Text>
-				<Text> </Text>
-				<EpicSelector onSelect={handleEpicSelect} />
-			</Box>
-		);
-	}
+		// Main view - default task list (handled by MainLayout)
+		return undefined;
+	}, [
+		setupPhase,
+		isMainView,
+		selectorIndex,
+		selectorTickets,
+		selectorLoading,
+		selectorError,
+		handleTicketSelect,
+	]);
 
-	if (view === 'no-prd') {
-		// This view is now deprecated but kept for backward compatibility
-		// Users should see epic-select instead
-		return (
-			<Box flexDirection="column" padding={1}>
-				<Text color="cyan" bold>
-					Ralph CLI
-				</Text>
-				<Text> </Text>
-				<Text color="yellow">No epics found in beads</Text>
-				<Text> </Text>
-				<Text>To get started:</Text>
-				<Text color="gray">
-					1. Use beads to create epics with tasks (bd create --type=epic)
-				</Text>
-				<Text color="gray">2. Run ralph-cli again</Text>
-				<Text> </Text>
-				<Text color="gray">Press any key to exit...</Text>
-			</Box>
-		);
-	}
+	// Calculate right content based on state
+	const rightContent = useMemo(() => {
+		// Setup phases - show setup wizard panel
+		if (setupPhase !== null) {
+			return (
+				<SetupWizardPanel
+					phase={setupPhase}
+					checkResult={setupCheckResult}
+					scaffoldStatus={scaffoldStatus}
+					errorMessage={errorMessage}
+					contentWidth={rightPanelWidth}
+				/>
+			);
+		}
 
-	if (view === 'error') {
-		return (
-			<Box flexDirection="column" padding={1}>
-				<Text color="cyan" bold>
-					Ralph CLI
-				</Text>
-				<Text> </Text>
+		// Ticket selection mode - show welcome panel
+		if (!isMainView) {
+			return <WelcomePanel contentWidth={rightPanelWidth} />;
+		}
+
+		// Main view with error - show error inline
+		if (errorMessage) {
+			return (
 				<ErrorDisplay
-					error={new Error(errorMessage ?? 'An unknown error occurred')}
+					error={new Error(errorMessage)}
 					onRetry={handleRetry}
 					onExit={() => void handleExitWithSync()}
 				/>
+			);
+		}
+
+		// Main view - default content (handled by MainLayout)
+		return undefined;
+	}, [
+		setupPhase,
+		setupCheckResult,
+		scaffoldStatus,
+		errorMessage,
+		rightPanelWidth,
+		isMainView,
+		handleRetry,
+		handleExitWithSync,
+	]);
+
+	// Calculate header content based on state
+	const headerContent = useMemo(() => {
+		// Setup phases - show Ralph CLI header
+		if (setupPhase !== null) {
+			return (
+				<Text bold color="cyan">
+					Ralph CLI - Setup
+				</Text>
+			);
+		}
+
+		// Ticket selection mode - show selection header
+		if (!isMainView) {
+			return (
+				<Text bold color="cyan">
+					Ralph CLI - Select Work
+				</Text>
+			);
+		}
+
+		// Main view - use default header from MainLayout
+		return undefined;
+	}, [setupPhase, isMainView]);
+
+	// Always render MainLayout with calculated content
+	return (
+		<ErrorBoundary
+			onRetry={handleRetry}
+			onExit={() => void handleExitWithSync()}
+		>
+			<Box flexDirection="column" height={terminalHeight}>
+				<MainLayout
+					leftContent={leftContent}
+					rightContent={rightContent}
+					headerContent={headerContent}
+					selectedTicket={updatedTicket}
+					workMode={workMode}
+					tasks={isMainView ? tasks : []}
+					selectedTask={isMainView ? selectedTask : null}
+					externalBlockers={isMainView ? externalBlockers : []}
+					rightPanelView={isRunning ? 'output' : 'task-detail'}
+					activeTab={activeTab}
+					outputLines={outputLines}
+					progressFilePath={paths.progressFile}
+					height={availableHeight}
+					terminalWidth={terminalWidth}
+				/>
+				{isMainView && tasksLoading && (
+					<Box paddingX={1}>
+						<Text color="gray">Loading tasks...</Text>
+					</Box>
+				)}
+				{isMainView && completionReason && (
+					<Box paddingX={1} marginTop={1}>
+						<Text
+							color={
+								completionReason.includes('complete') ||
+								completionReason.includes('closed')
+									? 'green'
+									: 'yellow'
+							}
+							bold
+						>
+							{completionReason}
+						</Text>
+					</Box>
+				)}
+				<KeyboardHelpFooter
+					isRunning={isRunning}
+					isStopping={isStopping}
+					isSyncing={isSyncing}
+					onStartIterations={
+						isMainView && !isRunning ? handleIterationConfirm : undefined
+					}
+				/>
 			</Box>
-		);
-	}
-
-	// Main view with beads workflow
-	if (view === 'main' && selectedEpic) {
-		// Update epic summary with live data
-		const updatedEpic: EpicSummary = {
-			...selectedEpic,
-			openCount: tasks.filter(t => t.status !== 'closed').length,
-			closedCount: tasks.filter(t => t.status === 'closed').length,
-			progress:
-				tasks.length > 0
-					? Math.round(
-							(tasks.filter(t => t.status === 'closed').length / tasks.length) *
-								100,
-					  )
-					: 0,
-			hasBlockedTasks: tasks.some(t => t.blockedBy.length > 0),
-		};
-
-		return (
-			<ErrorBoundary
-				onRetry={handleRetry}
-				onExit={() => void handleExitWithSync()}
-			>
-				<Box flexDirection="column" height={terminalHeight}>
-					<MainLayout
-						selectedEpic={updatedEpic}
-						tasks={tasks}
-						selectedTask={selectedTask}
-						externalBlockers={externalBlockers}
-						rightPanelView={isRunning ? 'output' : 'task-detail'}
-						activeTab={activeTab}
-						outputLines={outputLines}
-						progressFilePath={paths.progressFile}
-						height={availableHeight}
-						terminalWidth={terminalWidth}
-					/>
-					{tasksLoading && (
-						<Box paddingX={1}>
-							<Text color="gray">Loading tasks...</Text>
-						</Box>
-					)}
-					{completionReason && (
-						<Box paddingX={1} marginTop={1}>
-							<Text
-								color={
-									completionReason.includes('complete') ||
-									completionReason.includes('closed')
-										? 'green'
-										: 'yellow'
-								}
-								bold
-							>
-								{completionReason}
-							</Text>
-						</Box>
-					)}
-					<KeyboardHelpFooter
-						isRunning={isRunning}
-						isStopping={isStopping}
-						isSyncing={isSyncing}
-						onStartIterations={!isRunning ? handleIterationConfirm : undefined}
-					/>
-				</Box>
-			</ErrorBoundary>
-		);
-	}
-
-	return null;
+		</ErrorBoundary>
+	);
 }

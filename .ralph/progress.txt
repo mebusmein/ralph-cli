@@ -91,3 +91,28 @@ Started: 2026-01-15
   - KEYBOARD_HELP object provides help text for footer display
   - useInput callback pattern: check key condition, call callback with optional chaining, return to prevent other matches
 ---
+
+## 2026-01-15 - ralph-cli-1yk
+- Integrated unified layout in app.tsx - always renders MainLayout with calculated content
+- Replaced `view` state (AppView) with `setupPhase` state (SetupPhase | null)
+- Removed SetupWizard component usage - moved setup keyboard handling into app.tsx
+- Added leftContent/rightContent/headerContent calculations based on state
+- Added ticket selector state management in app.tsx for embedded mode
+- Added handleBackToTicketSelect callback wired to useKeyboardControls
+- Removed branch switching logic (deferred to ralph-cli-dm6)
+- Files changed:
+  - `source/app.tsx` - Major refactor: unified rendering via MainLayout
+    - New state: setupPhase, setupCheckResult, scaffoldStatus, selectorTickets, selectorIndex, selectorLoading, selectorError
+    - New computed: isMainView (setupPhase === null && has ticket selection)
+    - Removed: view state, SetupWizard import, branch switching state/logic
+    - Added useMemo for leftContent, rightContent, headerContent
+    - Setup keyboard handling via useInput with isActive: setupPhase !== null
+    - Ticket selector keyboard handling via useInput with isActive: isTicketSelectMode
+- **Learnings:**
+  - SetupPhase null indicates setup complete and in ticket selection or main view
+  - isMainView logic: `setupPhase === null && (workMode === 'all' || selectedTicket !== null)`
+  - isTicketSelectMode: `setupPhase === null && selectedTicket === null && workMode === 'specific'`
+  - MainLayout accepts null for leftContent (hides left panel), undefined uses default
+  - Keyboard handlers use {isActive: condition} to conditionally enable
+  - Pre-existing eslint unicorn plugin bug blocks xo tests - build and prettier pass
+---
