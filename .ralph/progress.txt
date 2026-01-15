@@ -26,3 +26,15 @@ Started: 2026-01-15
   - Multiple files referenced the skill: types, scaffolding, checker, templates, UI components
   - Pre-existing test infrastructure issues (eslint unicorn plugin, ava config) not related to changes
 ---
+
+## 2026-01-15 - ralph-cli-w9o
+- Fixed output stream visualization issue where tool calls broke TUI layout
+- Root cause: Multi-line content in tool use/result strings (e.g., code snippets with newlines) was displayed without normalization
+- Files changed:
+  - `source/lib/stream-formatter.ts` - Added `normalizeWhitespace()` function and updated `truncate()` to normalize whitespace before display
+- **Learnings:**
+  - The `truncate()` function is used throughout the stream formatter for both tool inputs and outputs
+  - TUI components like OutputPanel expect single-line strings per logical entry; embedded newlines break layout
+  - The fix normalizes `\n`, `\r`, `\t` to spaces and collapses multiple consecutive spaces
+  - Pre-existing test infrastructure issues prevent running ava tests, but manual testing via node confirms fix works
+---

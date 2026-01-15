@@ -175,16 +175,26 @@ export type FormattedOutput = {
 };
 
 /**
+ * Normalize a string by replacing newlines and tabs with spaces
+ * This prevents multi-line content from breaking the TUI layout
+ */
+function normalizeWhitespace(text: string): string {
+	return text.replaceAll(/[\n\r\t]+/g, ' ').replaceAll(/\s{2,}/g, ' ');
+}
+
+/**
  * Truncate a string if it exceeds the maximum length
+ * Also normalizes whitespace to prevent TUI layout issues
  */
 function truncate(
 	text: string,
 	maxLength: number = MAX_CONTENT_LENGTH,
 ): string {
-	if (text.length <= maxLength) {
-		return text;
+	const normalized = normalizeWhitespace(text);
+	if (normalized.length <= maxLength) {
+		return normalized;
 	}
-	return text.slice(0, maxLength) + '... [truncated]';
+	return normalized.slice(0, maxLength) + '... [truncated]';
 }
 
 /**
