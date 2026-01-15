@@ -1,27 +1,42 @@
 # Ralph Agent Instructions
 
+## Epic Context
+
+You are working on epic **$EPIC_ID**: $EPIC_TITLE
+
 ## Your Task
 
-1. Read `.ralph/prd.json`
-2. Read `.ralph/progress.txt`
+1. Read `.ralph/progress.txt`
    (check Codebase Patterns first)
-3. Check you're on the correct branch
-4. Pick highest priority story 
-   where `passes: false`
-5. Implement that ONE story
-6. Run typecheck and tests
-7. Update AGENTS.md files with learnings
-8. Commit: `feat: [ID] - [Title]`
-9. Update prd.json: `passes: true`
-10. Append learnings to progress.txt
+2. Check you're on the correct branch
+3. Query tasks: `bd list --parent=$EPIC_ID --status=open`
+4. Pick ONE task using this strategy:
+   - Prioritize unblocked tasks (check `blocked_by` field)
+   - Higher priority (lower number) first
+   - Tasks whose dependencies are closed first
+5. Claim the task: `bd update <task-id> --status=in_progress`
+6. Implement that ONE task
+7. Run typecheck and tests
+8. Update AGENTS.md files with learnings
+9. Append learnings to progress.txt
+10. Commit: `feat: [task-id] - [Title]`
+11. Close the task: `bd close <task-id>`
+
 
 ONLY WORK ON A SINGLE TASK.
+
+## Issue Discovery
+
+If you discover work that needs to be done:
+- Create a new issue: `bd create --title="..." --type=task --parent=$EPIC_ID`
+- If the new work blocks your current task, add it as a blocker: `bd dep add <current-task> <new-task>`
+- Continue with your current task if possible, or switch to the blocker if critical
 
 ## Progress Format
 
 APPEND to progress.txt:
 
-## [Date] - [Story ID]
+## [Date] - [Task ID]
 - What was implemented
 - Files changed
 - **Learnings:**
@@ -31,7 +46,7 @@ APPEND to progress.txt:
 
 ## Stop Condition
 
-If ALL stories pass, reply:
+If ALL tasks in the epic are closed or blocked, reply:
 <promise>COMPLETE</promise>
 
 Otherwise end normally.
