@@ -24,6 +24,7 @@ import {
 	getTickets,
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
+import {isOnMainBranch, getCurrentBranch} from './utils/branch-utils.js';
 import {
 	createRalphDirectory,
 	createPromptTemplate,
@@ -99,6 +100,12 @@ export default function App({
 	const [selectorIndex, setSelectorIndex] = useState(0);
 	const [selectorLoading, setSelectorLoading] = useState(false);
 	const [selectorError, setSelectorError] = useState<string | null>(null);
+
+	// Main branch warning state
+	const [showMainBranchWarning, setShowMainBranchWarning] = useState(false);
+	const [currentBranchName, setCurrentBranchName] = useState<string | null>(
+		null,
+	);
 
 	// AbortController for immediate cancellation
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -271,6 +278,17 @@ export default function App({
 			}
 		},
 		{isActive: isTicketSelectMode},
+	);
+
+	// Main branch warning dismiss keyboard handler
+	useInput(
+		(input, key) => {
+			// Dismiss warning with 'd', Enter, or Escape
+			if (input.toLowerCase() === 'd' || key.return || key.escape) {
+				setShowMainBranchWarning(false);
+			}
+		},
+		{isActive: showMainBranchWarning},
 	);
 
 	// Handle iteration confirmation (start execution)
@@ -453,6 +471,12 @@ export default function App({
 		const setupResult = checkSetup(cwd);
 		setSetupCheckResult(setupResult);
 
+		// Check if on main/master branch and show warning
+		if (isOnMainBranch()) {
+			setCurrentBranchName(getCurrentBranch() ?? 'main');
+			setShowMainBranchWarning(true);
+		}
+
 		if (setupResult.isComplete && setupResult.isBeadsInitialized) {
 			// Setup complete - load tickets and skip to selection
 			setSetupPhase(null);
@@ -624,6 +648,27 @@ export default function App({
 			onExit={() => void handleExitWithSync()}
 		>
 			<Box flexDirection="column" height={terminalHeight}>
+				{showMainBranchWarning && (
+					<Box
+						borderStyle="round"
+						borderColor="yellow"
+						paddingX={1}
+						marginBottom={1}
+					>
+						<Text color="yellow" bold>
+							Warning:{' '}
+						</Text>
+						<Text>
+							You are on the <Text color="cyan">{currentBranchName}</Text>{' '}
+							branch. Consider creating a feature branch before making changes.
+						</Text>
+						<Text color="gray"> Press </Text>
+						<Text color="white" bold>
+							d
+						</Text>
+						<Text color="gray"> to dismiss</Text>
+					</Box>
+				)}
 				<MainLayout
 					leftContent={leftContent}
 					rightContent={rightContent}

@@ -116,3 +116,14 @@ Started: 2026-01-15
   - Keyboard handlers use {isActive: condition} to conditionally enable
   - Pre-existing eslint unicorn plugin bug blocks xo tests - build and prettier pass
 ---
+
+## 2026-01-15 - ralph-cli-dm6
+- Removed branch switching logic, added dismissable main-branch warning
+- Files changed:
+  - `source/utils/branch-utils.ts` - Removed: slugifyTitle, deriveBranchName, branchExists, getDefaultBranch, hasUncommittedChanges, createAndSwitchBranch. Added: isOnMainBranch()
+  - `source/app.tsx` - Added main branch warning state, keyboard handler to dismiss ('d', Enter, Escape), warning banner UI
+- **Learnings:**
+  - branch-utils functions were defined but unused elsewhere after app.tsx branch logic was removed in ralph-cli-1yk
+  - useInput hook with {isActive: showMainBranchWarning} enables conditional keyboard handlers
+  - Warning banner uses Box with borderStyle="round" borderColor="yellow" for consistent styling
+---
