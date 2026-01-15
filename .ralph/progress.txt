@@ -568,3 +568,17 @@ Started: 2026-01-13
   - Status color mapping: closed=green, in_progress=yellow, open=gray follows traffic light convention
   - Use `dimColor` prop on Text for struck-through appearance on completed checklist items
 ---
+
+## 2026-01-15 - US-038
+- What was implemented: ExternalBlockers collapsible section component for displaying blockers from other epics
+- Files changed:
+  - source/components/ExternalBlockers.tsx - New component with collapsible header, keyboard toggle, blocker list
+  - source/components/index.ts - Added barrel export for ExternalBlockers
+- **Learnings:**
+  - Use Ink's `useInput` with `{isActive}` option for conditional keyboard handling in collapsible sections
+  - Collapsible sections need explicit `isActive` prop to enable keyboard when section has focus
+  - Triangle icons work well for expand/collapse state: `▼` (expanded) and `▶` (collapsed)
+  - Reuse status color and indicator helpers from similar components for consistency
+  - Show keyboard hint next to header only when section is active: `(e/Enter to toggle)`
+  - Handle empty blockers case gracefully with "No external blockers" message
+---
