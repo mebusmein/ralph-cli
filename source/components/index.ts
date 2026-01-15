@@ -1,5 +1,11 @@
 export {default as SetupWizard} from './SetupWizard.js';
+export {default as SetupWizardPanel} from './SetupWizardPanel.js';
+export type {ScaffoldingStatus} from './SetupWizardPanel.js';
+export {default as WelcomePanel} from './WelcomePanel.js';
 export {default as TicketList} from './TicketList.js';
+export {default as TicketSelector} from './TicketSelector.js';
+export type {TicketSelection, WorkMode} from './TicketSelector.js';
+/** @deprecated Use TicketSelector instead */
 export {default as EpicSelector} from './EpicSelector.js';
 export {default as OutputPanel} from './OutputPanel.js';
 export {default as ProgressLog} from './ProgressLog.js';

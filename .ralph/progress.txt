@@ -65,3 +65,19 @@ Started: 2026-01-15
   - SetupWizardPanel uses discriminated union pattern with conditional rendering based on phase
   - Pre-existing test infrastructure issues (eslint unicorn plugin) unrelated to this task
 ---
+
+## 2026-01-15 - ralph-cli-82z
+- Added embedded mode to TicketSelector for use in unified layout
+- Updated MainLayout with leftContent/rightContent/headerContent props
+- Exported WelcomePanel and SetupWizardPanel from components/index.ts
+- Files changed:
+  - `source/components/TicketSelector.tsx` - Added embedded prop (disables header/footer/keyboard), controlled selectedIndex, external tickets/loading/error props
+  - `source/components/MainLayout.tsx` - Added leftContent, rightContent, headerContent props for conditional rendering; extracted default content into variables
+  - `source/components/index.ts` - Exported SetupWizardPanel, ScaffoldingStatus type, WelcomePanel
+- **Learnings:**
+  - TicketSelector internal state: internalTickets, internalSelectedIndex, internalIsLoading, internalError
+  - Embedded mode pattern: external props override internal state when embedded=true
+  - useInput hook still fires in embedded mode, so we guard with `if (embedded) return`
+  - MainLayout uses nullish coalescing (`??`) for content fallback to allow null/undefined custom content
+  - Pre-existing eslint unicorn plugin bug blocks ava tests - build and prettier pass
+---
