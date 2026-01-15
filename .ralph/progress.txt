@@ -38,3 +38,16 @@ Started: 2026-01-15
   - The fix normalizes `\n`, `\r`, `\t` to spaces and collapses multiple consecutive spaces
   - Pre-existing test infrastructure issues prevent running ava tests, but manual testing via node confirms fix works
 ---
+
+## 2026-01-15 - ralph-cli-3o9
+- Created WelcomePanel.tsx and SetupWizardPanel.tsx for unified two-column UI
+- Files created:
+  - `source/components/WelcomePanel.tsx` - Welcome message for right panel when no ticket selected
+  - `source/components/SetupWizardPanel.tsx` - Pure presentation component extracted from SetupWizard
+- **Learnings:**
+  - SetupWizard.tsx has display logic mixed with state/input handling - SetupWizardPanel extracts just the presentation
+  - SetupStep type: 'checking' | 'prompt' | 'scaffolding' | 'complete' | 'error'
+  - ScaffoldingStatus contains results for ralphDir, promptFile, progressFile, beads
+  - Components use Box with borderStyle="round" and borderColor="gray" for panel styling
+  - Type icons: ◎ epic, ★ feature, ⚠ bug, ◆ task (consistent across TicketSelector, MainLayout)
+---
