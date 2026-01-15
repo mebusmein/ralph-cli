@@ -738,3 +738,15 @@ Started: 2026-01-13
   - Backward compatibility for string cwd parameter preserved via union type check
   - RalphPaths.prdFile still exists in config.ts but is no longer used by prompt-loader
 ---
+
+## 2026-01-15 - US-051
+- What was implemented: Updated README for beads workflow documentation
+- Files changed:
+  - readme.md - Complete rewrite documenting beads-based workflow
+- **Learnings:**
+  - README documentation stories have no typecheck requirement (markdown only)
+  - Document keyboard controls in categorized tables by view/context (epic selection, main view, etc.)
+  - Include beads CLI commands reference section for users unfamiliar with bd commands
+  - Branch management documentation: explain auto-derivation from epic title and uncommitted changes warning
+  - Quick Start should reference `/ralph-plan` skill for creating epics after setup
+---

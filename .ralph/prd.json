@@ -337,7 +337,7 @@
 				"Document keyboard controls for epic/task navigation"
 			],
 			"priority": 20,
-			"passes": false,
+			"passes": true,
 			"notes": ""
 		}
 	]
