@@ -8,3 +8,4 @@ export {default as MainLayout} from './MainLayout.js';
 export {default as KeyboardHelpFooter} from './KeyboardHelpFooter.js';
 export {default as ErrorBoundary, ErrorDisplay} from './ErrorBoundary.js';
 export {default as TaskDetailPanel} from './TaskDetailPanel.js';
+export {default as ExternalBlockers} from './ExternalBlockers.js';
