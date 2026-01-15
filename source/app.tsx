@@ -1,49 +1,32 @@
 import React, {useState, useCallback, useEffect, useRef, useMemo} from 'react';
-import {Text, Box, useApp, useStdout} from 'ink';
+import {Text, Box, useApp, useStdout, useInput} from 'ink';
 import {
 	SetupWizard,
 	MainLayout,
 	KeyboardHelpFooter,
 	ErrorBoundary,
 	ErrorDisplay,
+	EpicSelector,
 	type TabId,
 } from './components/index.js';
-import {useKeyboardControls} from './hooks/index.js';
+import {useKeyboardControls, useBeadsPolling} from './hooks/index.js';
 import {
-	readPRDFile,
 	createIterationEmitter,
 	runIterations,
-	getStoriesWithStatus,
 	createPromptGenerator,
 	type FormattedOutput,
+	getExternalBlockers,
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
-import type {AppView, StoryWithStatus} from './types/state.js';
+import {
+	deriveBranchName,
+	getCurrentBranch,
+	branchExists,
+	createAndSwitchBranch,
+	hasUncommittedChanges,
+} from './utils/branch-utils.js';
+import type {AppView} from './types/state.js';
 import type {BeadsIssue, EpicSummary} from './types/beads.js';
-
-/**
- * Convert StoryWithStatus to BeadsIssue for MainLayout compatibility
- * This is a temporary bridge until full beads migration is complete
- */
-function storyToBeadsIssue(story: StoryWithStatus): BeadsIssue {
-	const statusMap: Record<string, BeadsIssue['status']> = {
-		passed: 'closed',
-		'in-progress': 'in_progress',
-		pending: 'open',
-		failed: 'open',
-	};
-	return {
-		id: story.id,
-		title: story.title,
-		type: 'task',
-		status: statusMap[story.status] ?? 'open',
-		priority: story.priority as BeadsIssue['priority'],
-		description: '',
-		blockedBy: [],
-		blocks: [],
-		parent: undefined,
-	};
-}
 
 type Props = {
 	cwd?: string;
@@ -83,23 +66,29 @@ export default function App({
 	}, [stdout]);
 
 	// Calculate available height for MainLayout (reserve space for footer, completion message, padding)
-	// Footer: 3 rows (border + content + margin)
-	// Completion message: 2 rows (when shown)
-	// Top padding: 0
 	const reservedRows = 5;
 	const availableHeight = Math.max(10, terminalHeight - reservedRows);
 
 	// Application state
 	const [view, setView] = useState<AppView>('setup');
 	const [activeTab, setActiveTab] = useState<TabId>('output');
-	const [stories, setStories] = useState<StoryWithStatus[]>([]);
-	const [currentStoryId, setCurrentStoryId] = useState<string | null>(null);
+	const [selectedEpic, setSelectedEpic] = useState<EpicSummary | null>(null);
+	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+	const [externalBlockers, setExternalBlockers] = useState<BeadsIssue[]>([]);
 	const [outputMessages, setOutputMessages] = useState<FormattedOutput[]>([]);
 	const [isRunning, setIsRunning] = useState(false);
 	const [isStopping, setIsStopping] = useState(false);
 	const [completionReason, setCompletionReason] = useState<string | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [lastIterations, setLastIterations] = useState<number>(1);
+
+	// Branch switch confirmation state
+	const [pendingBranchSwitch, setPendingBranchSwitch] = useState<{
+		epic: EpicSummary;
+		branchName: string;
+		needsCreation: boolean;
+	} | null>(null);
+	const [uncommittedWarning, setUncommittedWarning] = useState(false);
 
 	// AbortController for immediate cancellation
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -113,37 +102,141 @@ export default function App({
 		[outputMessages],
 	);
 
-	// Load PRD and check if it has stories
-	const loadPRD = useCallback(() => {
-		const result = readPRDFile(paths.prdFile);
-		if (result.success && result.config.userStories.length > 0) {
-			setStories(getStoriesWithStatus(result.config.userStories, null));
-			return true;
+	// Use beads polling when we have a selected epic and are on main view
+	const {tasks: beadsTasks, loading: tasksLoading} = useBeadsPolling({
+		epicId: selectedEpic?.id ?? '',
+		intervalMs: 2500,
+	});
+
+	// Only use polled tasks when we have a selected epic
+	const tasks = selectedEpic ? beadsTasks : [];
+
+	// Fetch external blockers when epic changes
+	useEffect(() => {
+		if (!selectedEpic) {
+			setExternalBlockers([]);
+			return;
 		}
 
-		return false;
-	}, [paths.prdFile]);
+		let mounted = true;
 
-	// Handle setup wizard completion
-	const handleSetupComplete = useCallback(
-		(hasPrd: boolean) => {
-			if (hasPrd) {
-				const hasStories = loadPRD();
-				if (hasStories) {
-					setView('main');
-				} else {
-					setView('no-prd');
+		async function fetchBlockers() {
+			const result = await getExternalBlockers(selectedEpic!.id);
+			if (mounted && result.success) {
+				setExternalBlockers(result.data);
+			}
+		}
+
+		void fetchBlockers();
+
+		return () => {
+			mounted = false;
+		};
+	}, [selectedEpic]);
+
+	// Find the selected task from selectedTaskId
+	const selectedTask = useMemo(
+		() => tasks.find(t => t.id === selectedTaskId) ?? null,
+		[tasks, selectedTaskId],
+	);
+
+	// Handle epic selection - check branch and switch/create
+	const handleEpicSelect = useCallback((epic: EpicSummary) => {
+		const branchName = deriveBranchName(epic.title);
+		const currentBranch = getCurrentBranch();
+
+		// Already on the correct branch
+		if (currentBranch === branchName) {
+			setSelectedEpic(epic);
+			setView('main');
+			return;
+		}
+
+		// Check for uncommitted changes
+		if (hasUncommittedChanges()) {
+			setUncommittedWarning(true);
+			setPendingBranchSwitch({
+				epic,
+				branchName,
+				needsCreation: !branchExists(branchName),
+			});
+			return;
+		}
+
+		// Proceed with branch switch
+		proceedWithBranchSwitch(epic, branchName);
+	}, []);
+
+	// Proceed with branch switch after user confirmation or no uncommitted changes
+	const proceedWithBranchSwitch = useCallback(
+		(epic: EpicSummary, branchName: string) => {
+			const needsCreation = !branchExists(branchName);
+
+			if (needsCreation) {
+				const result = createAndSwitchBranch(branchName);
+				if (!result.success) {
+					setErrorMessage(`Failed to create branch: ${result.error}`);
+					setView('error');
+					return;
 				}
 			} else {
-				setView('no-prd');
+				// Switch to existing branch
+				try {
+					const {execSync} = require('node:child_process');
+					execSync(`git checkout ${branchName}`, {
+						encoding: 'utf8',
+						stdio: ['pipe', 'pipe', 'pipe'],
+					});
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : 'Unknown error';
+					setErrorMessage(`Failed to switch branch: ${message}`);
+					setView('error');
+					return;
+				}
+			}
+
+			setSelectedEpic(epic);
+			setUncommittedWarning(false);
+			setPendingBranchSwitch(null);
+			setView('main');
+		},
+		[],
+	);
+
+	// Handle uncommitted changes warning response
+	useInput(
+		(input, key) => {
+			if (!uncommittedWarning || !pendingBranchSwitch) return;
+
+			if (input.toLowerCase() === 'y' || key.return) {
+				// User wants to proceed anyway
+				proceedWithBranchSwitch(
+					pendingBranchSwitch.epic,
+					pendingBranchSwitch.branchName,
+				);
+			} else if (input.toLowerCase() === 'n' || key.escape) {
+				// User cancelled - go back to epic selection
+				setUncommittedWarning(false);
+				setPendingBranchSwitch(null);
 			}
 		},
-		[loadPRD],
+		{isActive: uncommittedWarning},
 	);
+
+	// Handle setup wizard completion
+	const handleSetupComplete = useCallback((hasPrd: boolean) => {
+		// After setup, always go to epic selection (beads workflow)
+		// The hasPrd parameter is kept for backward compat but we use beads now
+		void hasPrd; // Suppress unused warning
+		setView('epic-select');
+	}, []);
 
 	// Handle iteration confirmation (start execution)
 	const handleIterationConfirm = useCallback(
 		(iterations: number) => {
+			if (!selectedEpic) return;
+
 			setIsRunning(true);
 			setOutputMessages([]);
 			setCompletionReason(null);
@@ -155,39 +248,26 @@ export default function App({
 			abortControllerRef.current = abortController;
 			stopAfterIterationRef.current = false;
 
-			// Set up event listeners
-			emitter.on('storyStart', story => {
-				setCurrentStoryId(story.id);
-				setStories(prev =>
-					prev.map(s =>
-						s.id === story.id ? {...s, status: 'in-progress'} : s,
-					),
-				);
-				// Add story start as an assistant message for visibility
+			// Set up event listeners for beads workflow
+			emitter.on('taskStart', task => {
+				setSelectedTaskId(task.id);
 				setOutputMessages(prev => [
 					...prev,
 					{
 						source: 'assistant',
-						content: `\n--- Starting ${story.id}: ${story.title} ---\n`,
+						content: `\n--- Starting ${task.id}: ${task.title} ---\n`,
 					},
 				]);
 			});
 
 			emitter.on('output', data => {
-				// data is the filtered FormattedOutput[] - replace the current messages
-				// with the filtered view (which includes all assistant + recent user messages)
 				setOutputMessages(data);
 			});
 
-			emitter.on('storyComplete', (storyId, success) => {
-				setStories(prev =>
-					prev.map(s =>
-						s.id === storyId
-							? {...s, status: success ? 'passed' : 'failed'}
-							: s,
-					),
-				);
-				setCurrentStoryId(null);
+			emitter.on('taskComplete', (taskId, success) => {
+				void taskId;
+				void success;
+				setSelectedTaskId(null);
 			});
 
 			emitter.on('iterationComplete', iteration => {
@@ -198,24 +278,50 @@ export default function App({
 						content: `\n--- Iteration ${iteration} complete ---\n`,
 					},
 				]);
-				// Reload PRD to get updated statuses
-				loadPRD();
+			});
+
+			emitter.on('noReadyTasks', () => {
+				setOutputMessages(prev => [
+					...prev,
+					{
+						source: 'assistant',
+						content: '\n--- No ready tasks (all blocked or closed) ---\n',
+					},
+				]);
+			});
+
+			emitter.on('epicComplete', epicId => {
+				setOutputMessages(prev => [
+					...prev,
+					{
+						source: 'assistant',
+						content: `\n--- Epic ${epicId} complete! ---\n`,
+					},
+				]);
 			});
 
 			emitter.on('complete', reason => {
 				setIsRunning(false);
 				setIsStopping(false);
-				setCurrentStoryId(null);
+				setSelectedTaskId(null);
 				abortControllerRef.current = null;
 
 				const reasonMessages: Record<string, string> = {
 					finished: 'All iterations completed',
-					all_passed: 'All stories passed!',
+					all_closed: 'All tasks closed!',
+					epic_complete: 'Epic complete! All tasks done.',
+					no_ready_tasks: 'No ready tasks - all blocked',
 					stopped: 'Stopped by user',
 					error: 'Stopped due to error',
 				};
 				setCompletionReason(reasonMessages[reason] ?? reason);
-				// Stay on 'main' view - don't change view state
+
+				// After epic completion, prompt for next epic selection
+				if (reason === 'epic_complete') {
+					// Clear the selected epic to allow new selection
+					setSelectedEpic(null);
+					setView('epic-select');
+				}
 			});
 
 			emitter.on('error', errorMsg => {
@@ -225,38 +331,17 @@ export default function App({
 				]);
 			});
 
-			emitter.on('storyMismatch', (expectedId, detectedId) => {
-				setOutputMessages(prev => [
-					...prev,
-					{
-						source: 'assistant',
-						content: `\n⚠ Story mismatch: expected ${expectedId}, AI worked on ${detectedId}. Marking ${detectedId} as complete.\n`,
-					},
-				]);
-				// Update the story list to reflect the actual story that was worked on
-				setStories(prevStories =>
-					prevStories.map(s =>
-						s.id === detectedId ? {...s, status: 'in-progress'} : s,
-					),
-				);
+			// Start execution with beads workflow
+			const promptGenerator = createPromptGenerator({
+				cwd,
+				epicId: selectedEpic.id,
+				epicTitle: selectedEpic.title,
 			});
 
-			emitter.on('storyDetectionFailed', fallbackId => {
-				setOutputMessages(prev => [
-					...prev,
-					{
-						source: 'assistant',
-						content: `\n⚠ Could not detect story ID from output. Marking ${fallbackId} as complete.\n`,
-					},
-				]);
-			});
-
-			// Start execution
-			const promptGenerator = createPromptGenerator(cwd);
 			runIterations(
 				{
 					iterations,
-					prdPath: paths.prdFile,
+					epicId: selectedEpic.id,
 					promptGenerator,
 					logFile,
 					shouldStopAfterIteration: () => stopAfterIterationRef.current,
@@ -273,15 +358,18 @@ export default function App({
 				setView('error');
 			});
 		},
-		[cwd, paths.prdFile, loadPRD, logFile],
+		[cwd, selectedEpic, logFile],
 	);
 
 	// Handle retry after error
 	const handleRetry = useCallback(() => {
 		setErrorMessage(null);
-		loadPRD();
-		handleIterationConfirm(lastIterations);
-	}, [loadPRD, handleIterationConfirm, lastIterations]);
+		if (selectedEpic) {
+			handleIterationConfirm(lastIterations);
+		} else {
+			setView('epic-select');
+		}
+	}, [handleIterationConfirm, lastIterations, selectedEpic]);
 
 	// Handle stop after iteration (graceful stop - doesn't kill current process)
 	const handleStopAfterIteration = useCallback(() => {
@@ -311,47 +399,88 @@ export default function App({
 
 	// Auto-start if initialIterations provided and we're on the main view
 	useEffect(() => {
-		if (view === 'main' && !isRunning && initialIterations !== undefined) {
+		if (
+			view === 'main' &&
+			!isRunning &&
+			initialIterations !== undefined &&
+			selectedEpic
+		) {
 			handleIterationConfirm(initialIterations);
 		}
 		// Only run once when transitioning to main view with initialIterations
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [view]);
+	}, [view, selectedEpic]);
 
 	// Initial setup check
 	useEffect(() => {
 		const setupResult = checkSetup(cwd);
-		if (setupResult.isComplete) {
-			const hasStories = loadPRD();
-			if (hasStories) {
-				setView('main');
-			} else {
-				setView('no-prd');
-			}
+		if (setupResult.isComplete && setupResult.isBeadsInitialized) {
+			// Go to epic selection instead of loading PRD
+			setView('epic-select');
 		}
 		// If setup is not complete, stay in 'setup' view for SetupWizard
-	}, [cwd, loadPRD]);
+	}, [cwd]);
 
 	// Render based on current view
 	if (view === 'setup') {
 		return <SetupWizard cwd={cwd} onComplete={handleSetupComplete} />;
 	}
 
-	if (view === 'no-prd') {
+	if (view === 'epic-select') {
+		// Show uncommitted changes warning if needed
+		if (uncommittedWarning && pendingBranchSwitch) {
+			return (
+				<Box flexDirection="column" padding={1}>
+					<Text color="cyan" bold>
+						Ralph CLI
+					</Text>
+					<Text> </Text>
+					<Text color="yellow" bold>
+						Warning: Uncommitted changes detected
+					</Text>
+					<Text> </Text>
+					<Text>You have uncommitted changes in your working directory.</Text>
+					<Text>
+						Switching to branch &quot;{pendingBranchSwitch.branchName}&quot;
+						{pendingBranchSwitch.needsCreation ? ' (will be created)' : ''} may
+						cause conflicts.
+					</Text>
+					<Text> </Text>
+					<Text color="gray">
+						Press Y to proceed anyway, N to cancel and commit your changes
+						first.
+					</Text>
+				</Box>
+			);
+		}
+
 		return (
 			<Box flexDirection="column" padding={1}>
 				<Text color="cyan" bold>
 					Ralph CLI
 				</Text>
 				<Text> </Text>
-				<Text color="yellow">No user stories found in prd.json</Text>
+				<EpicSelector onSelect={handleEpicSelect} />
+			</Box>
+		);
+	}
+
+	if (view === 'no-prd') {
+		// This view is now deprecated but kept for backward compatibility
+		// Users should see epic-select instead
+		return (
+			<Box flexDirection="column" padding={1}>
+				<Text color="cyan" bold>
+					Ralph CLI
+				</Text>
+				<Text> </Text>
+				<Text color="yellow">No epics found in beads</Text>
 				<Text> </Text>
 				<Text>To get started:</Text>
 				<Text color="gray">
-					1. Run /ralph-plan in Claude to create user stories
+					1. Run /ralph-plan in Claude to create epics with tasks
 				</Text>
-				<Text color="gray">2. Create a feature branch for your work</Text>
-				<Text color="gray">3. Run ralph-cli again</Text>
+				<Text color="gray">2. Run ralph-cli again</Text>
 				<Text> </Text>
 				<Text color="gray">Press any key to exit...</Text>
 			</Box>
@@ -374,38 +503,31 @@ export default function App({
 		);
 	}
 
-	// Convert stories to BeadsIssue format for MainLayout
-	const tasks = useMemo(() => stories.map(storyToBeadsIssue), [stories]);
-
-	// Create a mock epic from the PRD config for MainLayout compatibility
-	// This will be replaced with real epic data in US-046
-	const mockEpic = useMemo<EpicSummary>(() => {
-		const closedCount = stories.filter(s => s.status === 'passed').length;
-		const totalCount = stories.length;
-		return {
-			id: 'prd',
-			title: 'PRD Stories',
-			progress: totalCount > 0 ? (closedCount / totalCount) * 100 : 0,
-			openCount: totalCount - closedCount,
-			closedCount,
-			hasBlockedTasks: false,
+	// Main view with beads workflow
+	if (view === 'main' && selectedEpic) {
+		// Update epic summary with live data
+		const updatedEpic: EpicSummary = {
+			...selectedEpic,
+			openCount: tasks.filter(t => t.status !== 'closed').length,
+			closedCount: tasks.filter(t => t.status === 'closed').length,
+			progress:
+				tasks.length > 0
+					? Math.round(
+							(tasks.filter(t => t.status === 'closed').length / tasks.length) *
+								100,
+					  )
+					: 0,
+			hasBlockedTasks: tasks.some(t => t.blockedBy.length > 0),
 		};
-	}, [stories]);
 
-	// Find the selected task from currentStoryId
-	const selectedTask = useMemo(
-		() => tasks.find(t => t.id === currentStoryId) ?? null,
-		[tasks, currentStoryId],
-	);
-
-	if (view === 'main') {
 		return (
 			<ErrorBoundary onRetry={handleRetry} onExit={exit}>
 				<Box flexDirection="column" height={terminalHeight}>
 					<MainLayout
-						selectedEpic={mockEpic}
+						selectedEpic={updatedEpic}
 						tasks={tasks}
 						selectedTask={selectedTask}
+						externalBlockers={externalBlockers}
 						rightPanelView={isRunning ? 'output' : 'task-detail'}
 						activeTab={activeTab}
 						outputLines={outputLines}
@@ -413,11 +535,17 @@ export default function App({
 						height={availableHeight}
 						terminalWidth={terminalWidth}
 					/>
+					{tasksLoading && (
+						<Box paddingX={1}>
+							<Text color="gray">Loading tasks...</Text>
+						</Box>
+					)}
 					{completionReason && (
 						<Box paddingX={1} marginTop={1}>
 							<Text
 								color={
-									completionReason === 'All stories passed!'
+									completionReason.includes('complete') ||
+									completionReason.includes('closed')
 										? 'green'
 										: 'yellow'
 								}

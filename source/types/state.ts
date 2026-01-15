@@ -15,4 +15,4 @@ export type StoryWithStatus = UserStory & {
 /**
  * Represents the current view/screen of the application
  */
-export type AppView = 'setup' | 'no-prd' | 'main' | 'error';
+export type AppView = 'setup' | 'epic-select' | 'no-prd' | 'main' | 'error';
