@@ -651,3 +651,16 @@ Started: 2026-01-13
   - Completion message directs users to `/ralph-plan` for creating epics with tasks in beads
   - The xo linter bug with `unicorn/expiring-todo-comments` is documented - use `tsc --noEmit` for reliable verification
 ---
+
+## 2026-01-15 - US-044
+- What was implemented: Updated prompt template for beads workflow with epic context and task management
+- Files changed:
+  - source/templates/index.ts - Updated DEFAULT_PROMPT_TEMPLATE with epic context, beads task selection, and issue discovery
+  - source/lib/prompt-loader.ts - Added $EPIC_ID and $EPIC_TITLE variable expansion, PromptGeneratorOptions type
+- **Learnings:**
+  - Use `$EPIC_ID` and `$EPIC_TITLE` variables for epic context in prompts
+  - Maintain backward compatibility in function signatures using union types: `optionsOrCwd: PromptGeneratorOptions | string`
+  - Task selection strategy: prioritize unblocked tasks, then higher priority (lower number), then closed dependencies
+  - Issue discovery instructions help Claude create and manage blockers during implementation
+  - The `bd list --parent=<id> --status=open` command gets all open tasks within an epic
+---
