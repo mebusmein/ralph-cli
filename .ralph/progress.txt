@@ -582,3 +582,20 @@ Started: 2026-01-13
   - Show keyboard hint next to header only when section is active: `(e/Enter to toggle)`
   - Handle empty blockers case gracefully with "No external blockers" message
 ---
+
+## 2026-01-15 - US-039
+- What was implemented: Updated TicketList component for beads tasks with keyboard navigation and type indicators
+- Files changed:
+  - source/components/TicketList.tsx - Rewrote to use BeadsIssue[], added keyboard navigation, type icons, blocked indicators
+  - source/components/MainLayout.tsx - Updated props to use BeadsIssue[] tasks instead of StoryWithStatus[] stories
+  - source/app.tsx - Added storyToBeadsIssue bridge function and useMemo to convert stories for MainLayout
+- **Learnings:**
+  - When migrating component interfaces, dependent components need updates to maintain typecheck pass
+  - Use a bridge function (storyToBeadsIssue) for temporary compatibility during incremental migrations
+  - Type icons for beads issue types: ◆ (task), ⚠ (bug), ★ (feature), ◎ (epic)
+  - Blocked indicator uses ⊘ symbol with red color to show tasks with blockedBy dependencies
+  - Use `inverse` prop on Text for highlighted selection with keyboard navigation
+  - Keyboard navigation requires `useState` for selectedIndex and `useInput` with `isActive` option
+  - Use separate useEffects for: syncing external selectedTaskId, resetting index on tasks change, notifying parent
+  - Fixed overhead calculation for title truncation increased to 20 chars (status + type + blocked + ID + separator)
+---
