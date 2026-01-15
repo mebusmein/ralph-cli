@@ -614,3 +614,15 @@ Started: 2026-01-13
   - When changing component props, update dependent components in same commit to maintain typecheck
   - Unicode ◎ symbol works well as epic indicator in headers
 ---
+
+## 2026-01-15 - US-041
+- What was implemented: Updated setup-checker for beads requirement
+- Files changed:
+  - source/types/config.ts - Added beadsDir to RalphPaths, isBeadsInitialized to SetupCheckResult
+  - source/utils/setup-checker.ts - Updated checkSetup to check .beads/ instead of prd.json
+- **Learnings:**
+  - When migrating incrementally, keep deprecated fields with JSDoc @deprecated tag for backward compatibility
+  - The checkSetup items array determines what the SetupWizard UI shows as checklist items
+  - Separate the existence check from the items array to return both specific status (isBeadsInitialized) and general status (items)
+  - Use `createCheckItem()` helper and capture result to use in both items array and specific status return
+---
