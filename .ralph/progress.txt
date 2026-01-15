@@ -511,3 +511,17 @@ Started: 2026-01-13
   - Use `existsSync('.beads')` to check if beads is initialized before running commands
   - Convert raw bd output to typed BeadsIssue using a `toBeadsIssue()` helper function
 ---
+
+## 2026-01-15 - US-034
+- What was implemented: useBeadsPolling hook for real-time beads status updates
+- Files changed:
+  - source/hooks/useBeadsPolling.ts - New hook with polling interval and cleanup
+  - source/hooks/index.ts - Added barrel exports for hook and types
+- **Learnings:**
+  - Use `useRef(true)` for mounted state tracking to prevent updates after unmount
+  - Set `mountedRef.current = true` at start of useEffect, `false` in cleanup
+  - Use `void` prefix for async calls inside useEffect and setInterval (no await)
+  - Export both the hook function and its associated types (BeadsPollingState, BeadsPollingOptions)
+  - Default parameter value `intervalMs = 2500` provides sensible default in destructuring
+  - Cleanup function clears interval with `clearInterval(intervalId)` to prevent memory leaks
+---
