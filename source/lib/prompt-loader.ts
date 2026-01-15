@@ -1,6 +1,7 @@
 import {existsSync, readFileSync} from 'node:fs';
 import {DEFAULT_PROMPT_TEMPLATE} from '../templates/index.js';
 import {getRalphPaths} from '../utils/setup-checker.js';
+import type {WorkMode} from '../components/TicketSelector.js';
 
 /**
  * Result of loading a prompt template
@@ -32,14 +33,19 @@ export type PromptVariables = {
 	progressFile: string;
 
 	/**
-	 * ID of the epic being worked on
+	 * ID of the ticket being worked on (empty in 'all' mode)
 	 */
-	epicId?: string;
+	ticketId?: string;
 
 	/**
-	 * Title of the epic being worked on
+	 * Title of the ticket being worked on (empty in 'all' mode)
 	 */
-	epicTitle?: string;
+	ticketTitle?: string;
+
+	/**
+	 * Work mode: 'specific' or 'all'
+	 */
+	workMode?: WorkMode;
 };
 
 /**
@@ -47,8 +53,9 @@ export type PromptVariables = {
  *
  * Supported variables:
  * - $PROGRESS_FILE - Path to the progress.txt file
- * - $EPIC_ID - ID of the epic being worked on
- * - $EPIC_TITLE - Title of the epic being worked on
+ * - $TICKET_ID - ID of the ticket being worked on (empty in 'all' mode)
+ * - $TICKET_TITLE - Title of the ticket being worked on (empty in 'all' mode)
+ * - $WORK_MODE - Work mode: 'specific' or 'all'
  */
 export function expandPromptVariables(
 	template: string,
@@ -56,14 +63,10 @@ export function expandPromptVariables(
 ): string {
 	let result = template.replaceAll('$PROGRESS_FILE', variables.progressFile);
 
-	// Add epic variables for beads workflow
-	if (variables.epicId !== undefined) {
-		result = result.replaceAll('$EPIC_ID', variables.epicId);
-	}
-
-	if (variables.epicTitle !== undefined) {
-		result = result.replaceAll('$EPIC_TITLE', variables.epicTitle);
-	}
+	// Add ticket variables
+	result = result.replaceAll('$TICKET_ID', variables.ticketId ?? '');
+	result = result.replaceAll('$TICKET_TITLE', variables.ticketTitle ?? '');
+	result = result.replaceAll('$WORK_MODE', variables.workMode ?? 'specific');
 
 	return result;
 }
@@ -113,20 +116,25 @@ export type PromptGeneratorOptions = {
 	cwd?: string;
 
 	/**
-	 * Epic ID for beads workflow
+	 * Ticket ID (specific mode only)
 	 */
-	epicId?: string;
+	ticketId?: string;
 
 	/**
-	 * Epic title for beads workflow
+	 * Ticket title (specific mode only)
 	 */
-	epicTitle?: string;
+	ticketTitle?: string;
+
+	/**
+	 * Work mode: 'specific' or 'all'
+	 */
+	workMode?: WorkMode;
 };
 
 /**
  * Create a prompt generator function for use with the iteration executor
  *
- * The generated prompt includes the base template plus epic context for beads workflow
+ * The generated prompt includes the base template plus ticket context
  *
  * @param optionsOrCwd - Configuration options object or just the cwd string (for backward compat)
  * @returns A function that generates prompts
@@ -138,13 +146,14 @@ export function createPromptGenerator(
 	const options: PromptGeneratorOptions =
 		typeof optionsOrCwd === 'string' ? {cwd: optionsOrCwd} : optionsOrCwd;
 
-	const {cwd = process.cwd(), epicId, epicTitle} = options;
+	const {cwd = process.cwd(), ticketId, ticketTitle, workMode} = options;
 	const paths = getRalphPaths(cwd);
 
 	const variables: PromptVariables = {
 		progressFile: paths.progressFile,
-		epicId,
-		epicTitle,
+		ticketId,
+		ticketTitle,
+		workMode,
 	};
 
 	// Try to load from file

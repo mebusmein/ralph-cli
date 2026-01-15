@@ -26,19 +26,27 @@ export type BeadsIssue = {
 	blockedBy: string[];
 	blocks: string[];
 	parent: string | undefined;
+	labels: string[];
 };
 
 /**
- * Summary information for an epic including progress metrics
+ * Summary information for a ticket including progress metrics
+ * Used in the ticket selector to display ticket info with child counts
  */
-export type EpicSummary = {
+export type TicketSummary = {
 	id: string;
 	title: string;
+	type: BeadsIssueType;
 	progress: number;
 	openCount: number;
 	closedCount: number;
 	hasBlockedTasks: boolean;
 };
+
+/**
+ * @deprecated Use TicketSummary instead
+ */
+export type EpicSummary = TicketSummary;
 
 /**
  * Result type for bd command execution

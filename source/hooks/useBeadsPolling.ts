@@ -1,6 +1,7 @@
 import {useState, useEffect, useRef} from 'react';
 import type {BeadsIssue, BeadsCommandError} from '../types/beads.js';
-import {getEpicTasks} from '../lib/beads-reader.js';
+import type {WorkMode} from '../components/TicketSelector.js';
+import {getTicketDescendants, getAllOpenTickets} from '../lib/beads-reader.js';
 
 /**
  * State returned by the useBeadsPolling hook
@@ -15,8 +16,10 @@ export type BeadsPollingState = {
  * Options for the useBeadsPolling hook
  */
 export type BeadsPollingOptions = {
-	/** Epic ID to poll tasks for */
-	epicId: string;
+	/** Ticket ID to poll tasks for (specific mode only) */
+	ticketId: string;
+	/** Work mode: 'specific' polls descendants, 'all' polls all open tickets */
+	workMode: WorkMode;
 	/** Polling interval in milliseconds (default: 2500) */
 	intervalMs?: number;
 };
@@ -24,9 +27,8 @@ export type BeadsPollingOptions = {
 /**
  * Hook for polling beads task state at a specified interval.
  *
- * Polls the beads state using getEpicTasks() and returns the current
- * tasks, loading state, and any errors. Cleans up the interval on
- * unmount or when epicId changes.
+ * In 'specific' mode: Polls descendants of the selected ticket
+ * In 'all' mode: Polls all open tickets in the project
  *
  * @param options - Configuration options for polling
  * @returns Current polling state with tasks, loading, and error
@@ -34,7 +36,7 @@ export type BeadsPollingOptions = {
 export function useBeadsPolling(
 	options: BeadsPollingOptions,
 ): BeadsPollingState {
-	const {epicId, intervalMs = 2500} = options;
+	const {ticketId, workMode, intervalMs = 2500} = options;
 
 	const [tasks, setTasks] = useState<BeadsIssue[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -47,7 +49,11 @@ export function useBeadsPolling(
 		mountedRef.current = true;
 
 		const fetchTasks = async (): Promise<void> => {
-			const result = await getEpicTasks(epicId);
+			// Choose the right query based on work mode
+			const result =
+				workMode === 'all'
+					? await getAllOpenTickets()
+					: await getTicketDescendants(ticketId);
 
 			if (!mountedRef.current) {
 				return;
@@ -63,20 +69,32 @@ export function useBeadsPolling(
 			setLoading(false);
 		};
 
-		// Initial fetch
-		void fetchTasks();
-
-		// Set up polling interval
-		const intervalId = setInterval(() => {
+		// Only fetch if we have a valid context
+		// In 'specific' mode, we need a ticketId
+		// In 'all' mode, we always fetch
+		if (workMode === 'all' || ticketId) {
 			void fetchTasks();
-		}, intervalMs);
 
-		// Cleanup on unmount or when epicId changes
+			// Set up polling interval
+			const intervalId = setInterval(() => {
+				void fetchTasks();
+			}, intervalMs);
+
+			// Cleanup on unmount or when dependencies change
+			return () => {
+				mountedRef.current = false;
+				clearInterval(intervalId);
+			};
+		}
+
+		// No ticketId in specific mode - return empty
+		setTasks([]);
+		setLoading(false);
+
 		return () => {
 			mountedRef.current = false;
-			clearInterval(intervalId);
 		};
-	}, [epicId, intervalMs]);
+	}, [ticketId, workMode, intervalMs]);
 
 	return {tasks, loading, error};
 }
