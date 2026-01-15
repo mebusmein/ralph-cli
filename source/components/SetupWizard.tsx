@@ -4,10 +4,11 @@ import {checkSetup} from '../utils/setup-checker.js';
 import {
 	createRalphDirectory,
 	createPromptTemplate,
-	createPrdTemplate,
 	createProgressTemplate,
 	installRalphPlanSkill,
+	initializeBeads,
 	type ScaffoldResult,
+	type BeadsInitResult,
 } from '../utils/setup-scaffolding.js';
 import type {SetupCheckItem, SetupCheckResult} from '../types/index.js';
 
@@ -16,9 +17,9 @@ type SetupStep = 'checking' | 'prompt' | 'scaffolding' | 'complete' | 'error';
 type ScaffoldingStatus = {
 	ralphDir?: ScaffoldResult;
 	promptFile?: ScaffoldResult;
-	prdFile?: ScaffoldResult;
 	progressFile?: ScaffoldResult;
 	ralphPlanSkill?: ScaffoldResult;
+	beads?: BeadsInitResult;
 };
 
 type Props = {
@@ -32,9 +33,9 @@ type Props = {
 const SCAFFOLD_ITEMS: Array<{key: keyof ScaffoldingStatus; name: string}> = [
 	{key: 'ralphDir', name: '.ralph directory'},
 	{key: 'promptFile', name: 'prompt.txt'},
-	{key: 'prdFile', name: 'prd.json'},
 	{key: 'progressFile', name: 'progress.txt'},
 	{key: 'ralphPlanSkill', name: 'ralph-plan skill'},
+	{key: 'beads', name: '.beads (issue tracker)'},
 ];
 
 function StatusIcon({exists}: {exists: boolean}): React.ReactElement {
@@ -44,10 +45,28 @@ function StatusIcon({exists}: {exists: boolean}): React.ReactElement {
 	return <Text color="red">[ ]</Text>;
 }
 
+/**
+ * Type guard to check if result is a ScaffoldResult
+ */
+function isScaffoldResult(
+	result: ScaffoldResult | BeadsInitResult,
+): result is ScaffoldResult {
+	return 'created' in result;
+}
+
+/**
+ * Type guard to check if result is a BeadsInitResult
+ */
+function isBeadsInitResult(
+	result: ScaffoldResult | BeadsInitResult,
+): result is BeadsInitResult {
+	return 'initialized' in result;
+}
+
 function ScaffoldStatusIcon({
 	result,
 }: {
-	result?: ScaffoldResult;
+	result?: ScaffoldResult | BeadsInitResult;
 }): React.ReactElement {
 	if (!result) {
 		return <Text color="gray">[.]</Text>;
@@ -57,8 +76,22 @@ function ScaffoldStatusIcon({
 		return <Text color="red">[X]</Text>;
 	}
 
-	if (result.created) {
-		return <Text color="green">[+]</Text>;
+	// Handle ScaffoldResult
+	if (isScaffoldResult(result)) {
+		if (result.created) {
+			return <Text color="green">[+]</Text>;
+		}
+		return <Text color="yellow">[=]</Text>;
+	}
+
+	// Handle BeadsInitResult
+	if (isBeadsInitResult(result)) {
+		if (result.initialized) {
+			return <Text color="green">[+]</Text>;
+		}
+		if (result.alreadyInitialized) {
+			return <Text color="yellow">[=]</Text>;
+		}
 	}
 
 	return <Text color="yellow">[=]</Text>;
@@ -78,16 +111,20 @@ function ScaffoldItem({
 	result,
 }: {
 	name: string;
-	result?: ScaffoldResult;
+	result?: ScaffoldResult | BeadsInitResult;
 }): React.ReactElement {
 	let statusText = '';
 	if (result) {
 		if (!result.success) {
 			statusText = ` - Error: ${result.error}`;
-		} else if (result.created) {
-			statusText = ' - Created';
-		} else {
-			statusText = ' - Already exists';
+		} else if (isScaffoldResult(result)) {
+			statusText = result.created ? ' - Created' : ' - Already exists';
+		} else if (isBeadsInitResult(result)) {
+			if (result.initialized) {
+				statusText = ' - Initialized';
+			} else if (result.alreadyInitialized) {
+				statusText = ' - Already initialized';
+			}
 		}
 	}
 
@@ -149,22 +186,23 @@ export default function SetupWizard({
 			const promptFile = createPromptTemplate(cwd);
 			setScaffoldStatus(prev => ({...prev, promptFile}));
 
-			const prdFile = createPrdTemplate(cwd);
-			setScaffoldStatus(prev => ({...prev, prdFile}));
-
 			const progressFile = createProgressTemplate(cwd);
 			setScaffoldStatus(prev => ({...prev, progressFile}));
 
 			const ralphPlanSkill = installRalphPlanSkill(cwd);
 			setScaffoldStatus(prev => ({...prev, ralphPlanSkill}));
 
+			// Initialize beads issue tracker
+			const beads = initializeBeads(cwd);
+			setScaffoldStatus(prev => ({...prev, beads}));
+
 			// Check if all succeeded
 			const allSuccess =
 				ralphDir.success &&
 				promptFile.success &&
-				prdFile.success &&
 				progressFile.success &&
-				ralphPlanSkill.success;
+				ralphPlanSkill.success &&
+				beads.success;
 
 			if (allSuccess) {
 				setStep('complete');
@@ -190,8 +228,8 @@ export default function SetupWizard({
 		} else if (step === 'complete') {
 			if (key.return || input.toLowerCase() === 'c') {
 				const result = checkSetup(cwd);
-				const prdItem = result.items.find(item => item.name === 'prd.json');
-				onComplete(prdItem?.exists ?? false);
+				// Pass true if beads is initialized (replaces prd.json check)
+				onComplete(result.isBeadsInitialized);
 			} else if (key.escape || input.toLowerCase() === 'q') {
 				exit();
 			}
@@ -262,10 +300,11 @@ export default function SetupWizard({
 						<Text> </Text>
 						<Text>Next steps:</Text>
 						<Text color="gray">
-							1. Run /ralph-plan to create user stories in .ralph/prd.json
+							1. Run /ralph-plan to create an epic with tasks in beads
 						</Text>
-						<Text color="gray">2. Create a feature branch</Text>
-						<Text color="gray">3. Run ralph-cli to start iterating</Text>
+						<Text color="gray">
+							2. Run ralph-cli to select an epic and start
+						</Text>
 					</>
 				) : (
 					<Text color="green">All setup items are present!</Text>

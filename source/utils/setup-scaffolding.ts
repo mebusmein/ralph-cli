@@ -1,7 +1,7 @@
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs';
+import {execSync} from 'node:child_process';
 import {dirname} from 'node:path';
 import {
-	DEFAULT_PRD_TEMPLATE,
 	DEFAULT_PROMPT_TEMPLATE,
 	DEFAULT_RALPH_PLAN_SKILL,
 	getProgressTemplate,
@@ -100,12 +100,61 @@ export function createPromptTemplate(
 }
 
 /**
- * Create the empty prd.json template
- * Idempotent: only creates if file doesn't exist
+ * Result of beads initialization
  */
-export function createPrdTemplate(cwd: string = process.cwd()): ScaffoldResult {
+export type BeadsInitResult = {
+	success: boolean;
+	initialized: boolean;
+	alreadyInitialized: boolean;
+	error?: string;
+};
+
+/**
+ * Initialize beads in the project by running bd init
+ * Returns result indicating if beads was initialized
+ */
+export function initializeBeads(cwd: string = process.cwd()): BeadsInitResult {
 	const paths = getRalphPaths(cwd);
-	return createFileIfNotExists(paths.prdFile, DEFAULT_PRD_TEMPLATE);
+
+	// Check if already initialized
+	if (existsSync(paths.beadsDir)) {
+		return {
+			success: true,
+			initialized: false,
+			alreadyInitialized: true,
+		};
+	}
+
+	try {
+		// Run bd init command
+		execSync('bd init', {
+			cwd,
+			stdio: ['pipe', 'pipe', 'pipe'],
+		});
+
+		// Verify it worked
+		if (existsSync(paths.beadsDir)) {
+			return {
+				success: true,
+				initialized: true,
+				alreadyInitialized: false,
+			};
+		}
+
+		return {
+			success: false,
+			initialized: false,
+			alreadyInitialized: false,
+			error: 'bd init completed but .beads directory was not created',
+		};
+	} catch (error) {
+		return {
+			success: false,
+			initialized: false,
+			alreadyInitialized: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
 }
 
 /**
@@ -135,41 +184,69 @@ export function installRalphPlanSkill(
  */
 export type FullScaffoldResult = {
 	success: boolean;
+	beadsInitialized: boolean;
 	results: {
 		ralphDir: ScaffoldResult;
 		promptFile: ScaffoldResult;
-		prdFile: ScaffoldResult;
 		progressFile: ScaffoldResult;
 		ralphPlanSkill: ScaffoldResult;
+		beads: BeadsInitResult;
 	};
+};
+
+/**
+ * Options for scaffolding
+ */
+export type ScaffoldOptions = {
+	initializeBeads?: boolean;
 };
 
 /**
  * Run all scaffolding operations
  * Idempotent: safe to run multiple times
+ *
+ * @param cwd - Working directory
+ * @param options - Scaffold options. Set initializeBeads to true to run bd init.
  */
-export function scaffoldAll(cwd: string = process.cwd()): FullScaffoldResult {
+export function scaffoldAll(
+	cwd: string = process.cwd(),
+	options: ScaffoldOptions = {},
+): FullScaffoldResult {
 	const ralphDir = createRalphDirectory(cwd);
 	const promptFile = createPromptTemplate(cwd);
-	const prdFile = createPrdTemplate(cwd);
 	const progressFile = createProgressTemplate(cwd);
 	const ralphPlanSkill = installRalphPlanSkill(cwd);
+
+	// Initialize beads if requested
+	let beads: BeadsInitResult;
+	if (options.initializeBeads) {
+		beads = initializeBeads(cwd);
+	} else {
+		// Check if already initialized without running init
+		const paths = getRalphPaths(cwd);
+		beads = {
+			success: true,
+			initialized: false,
+			alreadyInitialized: existsSync(paths.beadsDir),
+		};
+	}
 
 	const success =
 		ralphDir.success &&
 		promptFile.success &&
-		prdFile.success &&
 		progressFile.success &&
-		ralphPlanSkill.success;
+		ralphPlanSkill.success &&
+		beads.success;
 
 	return {
 		success,
+		beadsInitialized: beads.initialized || beads.alreadyInitialized,
 		results: {
 			ralphDir,
 			promptFile,
-			prdFile,
 			progressFile,
 			ralphPlanSkill,
+			beads,
 		},
 	};
 }

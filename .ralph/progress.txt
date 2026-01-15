@@ -626,3 +626,16 @@ Started: 2026-01-13
   - Separate the existence check from the items array to return both specific status (isBeadsInitialized) and general status (items)
   - Use `createCheckItem()` helper and capture result to use in both items array and specific status return
 ---
+
+## 2026-01-15 - US-042
+- What was implemented: Updated setup-scaffolding for beads initialization
+- Files changed:
+  - source/utils/setup-scaffolding.ts - Removed createPrdTemplate(), added initializeBeads(), updated scaffoldAll() with ScaffoldOptions
+  - source/components/SetupWizard.tsx - Updated to use initializeBeads, removed prdFile references, added type guards for BeadsInitResult
+- **Learnings:**
+  - Use `execSync` from `node:child_process` with `stdio: ['pipe', 'pipe', 'pipe']` to capture output from bd init
+  - BeadsInitResult type needs `initialized` and `alreadyInitialized` fields to distinguish between fresh init and existing state
+  - Type guards (`isScaffoldResult`, `isBeadsInitResult`) enable handling different result types in unified components
+  - scaffoldAll() now accepts ScaffoldOptions with `initializeBeads?: boolean` for explicit control over init behavior
+  - Update dependent components (SetupWizard) when changing scaffolding exports to maintain typecheck pass
+---
