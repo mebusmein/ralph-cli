@@ -127,3 +127,15 @@ Started: 2026-01-15
   - useInput hook with {isActive: showMainBranchWarning} enables conditional keyboard handlers
   - Warning banner uses Box with borderStyle="round" borderColor="yellow" for consistent styling
 ---
+
+## 2026-01-15 - ralph-cli-edt
+- Modified getAllOpenTickets() to include closed tickets in sidebar
+- Changed from separate --status=open and --status=in_progress queries to single --all query
+- Files changed:
+  - `source/lib/beads-reader.ts` - getAllOpenTickets() now uses --all flag to include closed tickets
+- **Learnings:**
+  - getTicketChildren() already used --all flag so getTicketDescendants() already included closed
+  - Only getAllOpenTickets() needed modification (used for 'all' work mode)
+  - TicketList.tsx already had rendering support for closed status (green ✓ checkmark)
+  - Using --all flag is cleaner than making multiple queries and combining results
+---

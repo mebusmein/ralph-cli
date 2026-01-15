@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs';
 import type {
 	BeadsIssue,
 	BeadsCommandResult,
-	EpicSummary,
+	TicketSummary,
 	BeadsStatus,
 	BeadsPriority,
 	BeadsIssueType,
@@ -20,6 +20,7 @@ type RawBeadsIssue = {
 	issue_type: string;
 	description?: string;
 	parent?: string;
+	labels?: string[];
 	dependencies?: Array<{
 		id: string;
 		title: string;
@@ -161,15 +162,104 @@ function toBeadsIssue(raw: RawBeadsIssue): BeadsIssue {
 		blockedBy,
 		blocks,
 		parent: raw.parent,
+		labels: raw.labels ?? [],
 	};
 }
 
 /**
+ * Checks if an issue has the 'hold' label (excluded from automation)
+ */
+function hasHoldLabel(issue: BeadsIssue): boolean {
+	return issue.labels.some(label => label.toLowerCase() === 'hold');
+}
+
+/**
+ * Gets all open tickets (any type) excluding those with 'hold' label
+ * Returns ticket summaries with child counts for display in selector
+ *
+ * @returns Promise resolving to array of ticket summaries
+ */
+export async function getTickets(): Promise<
+	BeadsCommandResult<TicketSummary[]>
+> {
+	// Get all open issues (any type)
+	const result = await runBeadsCommand<RawBeadsIssue[]>([
+		'list',
+		'--status=open',
+		'--limit=0',
+	]);
+
+	if (!result.success) {
+		return result;
+	}
+
+	// Also get in_progress issues
+	const inProgressResult = await runBeadsCommand<RawBeadsIssue[]>([
+		'list',
+		'--status=in_progress',
+		'--limit=0',
+	]);
+
+	const allIssues = [
+		...result.data,
+		...(inProgressResult.success ? inProgressResult.data : []),
+	];
+
+	// Filter out issues with 'hold' label
+	const filteredIssues = allIssues.filter(
+		issue => !(issue.labels ?? []).some(l => l.toLowerCase() === 'hold'),
+	);
+
+	// Build summaries with child counts
+	const summaries: TicketSummary[] = [];
+
+	for (const issue of filteredIssues) {
+		// Get all children of this issue (including closed)
+		const childrenResult = await runBeadsCommand<RawBeadsIssue[]>([
+			'list',
+			`--parent=${issue.id}`,
+			'--all',
+			'--limit=0',
+		]);
+
+		// Get blocked children
+		const blockedResult = await runBeadsCommand<RawBeadsIssue[]>([
+			'blocked',
+			`--parent=${issue.id}`,
+		]);
+
+		const children = childrenResult.success ? childrenResult.data : [];
+		const blocked = blockedResult.success ? blockedResult.data : [];
+
+		const openCount = children.filter(c => c.status !== 'closed').length;
+		const closedCount = children.filter(c => c.status === 'closed').length;
+		const total = openCount + closedCount;
+		const progress = total > 0 ? Math.round((closedCount / total) * 100) : 0;
+
+		summaries.push({
+			id: issue.id,
+			title: issue.title,
+			type: issue.issue_type as BeadsIssueType,
+			progress,
+			openCount,
+			closedCount,
+			hasBlockedTasks: blocked.length > 0,
+		});
+	}
+
+	return {
+		success: true,
+		data: summaries,
+	};
+}
+
+/**
+ * @deprecated Use getTickets instead
  * Gets all epics with task counts and progress percentage
  *
  * @returns Promise resolving to array of epic summaries
  */
-export async function getEpics(): Promise<BeadsCommandResult<EpicSummary[]>> {
+export async function getEpics(): Promise<BeadsCommandResult<TicketSummary[]>> {
 	const result = await runBeadsCommand<RawBeadsIssue[]>([
 		'list',
 		'--type=epic',
@@ -182,7 +272,7 @@ export async function getEpics(): Promise<BeadsCommandResult<EpicSummary[]>> {
 	}
 
 	// For each epic, we need to get child counts
-	const summaries: EpicSummary[] = [];
+	const summaries: TicketSummary[] = [];
 
 	for (const epic of result.data) {
 		// Get all children of this epic (including closed)
@@ -210,6 +300,7 @@ export async function getEpics(): Promise<BeadsCommandResult<EpicSummary[]>> {
 		summaries.push({
 			id: epic.id,
 			title: epic.title,
+			type: 'epic',
 			progress,
 			openCount,
 			closedCount,
@@ -224,17 +315,17 @@ export async function getEpics(): Promise<BeadsCommandResult<EpicSummary[]>> {
 }
 
 /**
- * Gets all tasks within an epic (recursively for nested issues)
+ * Gets all direct children within a ticket
  *
- * @param epicId - The epic ID to get tasks for
- * @returns Promise resolving to array of tasks in the epic
+ * @param ticketId - The ticket ID to get children for
+ * @returns Promise resolving to array of direct children
  */
-export async function getEpicTasks(
-	epicId: string,
+export async function getTicketChildren(
+	ticketId: string,
 ): Promise<BeadsCommandResult<BeadsIssue[]>> {
 	const result = await runBeadsCommand<RawBeadsIssue[]>([
 		'list',
-		`--parent=${epicId}`,
+		`--parent=${ticketId}`,
 		'--all',
 		'--limit=0',
 	]);
@@ -247,6 +338,85 @@ export async function getEpicTasks(
 		success: true,
 		data: result.data.map(raw => toBeadsIssue(raw)),
 	};
+}
+
+/**
+ * Gets all descendants of a ticket recursively (children, grandchildren, etc.)
+ *
+ * @param ticketId - The ticket ID to get descendants for
+ * @returns Promise resolving to array of all descendants
+ */
+export async function getTicketDescendants(
+	ticketId: string,
+): Promise<BeadsCommandResult<BeadsIssue[]>> {
+	const allDescendants: BeadsIssue[] = [];
+	const toProcess = [ticketId];
+	const processed = new Set<string>();
+
+	while (toProcess.length > 0) {
+		const currentId = toProcess.pop()!;
+		if (processed.has(currentId)) continue;
+		processed.add(currentId);
+
+		const childrenResult = await getTicketChildren(currentId);
+		if (!childrenResult.success) {
+			return childrenResult;
+		}
+
+		for (const child of childrenResult.data) {
+			allDescendants.push(child);
+			toProcess.push(child.id);
+		}
+	}
+
+	return {
+		success: true,
+		data: allDescendants,
+	};
+}
+
+/**
+ * Gets all tickets in the project (for "all tickets" mode list display)
+ * Includes open, in_progress, and closed tickets for sidebar display
+ * Excludes tickets with 'hold' label
+ *
+ * @returns Promise resolving to array of all tickets
+ */
+export async function getAllOpenTickets(): Promise<
+	BeadsCommandResult<BeadsIssue[]>
+> {
+	// Get all issues (open, in_progress, closed) using --all flag
+	const result = await runBeadsCommand<RawBeadsIssue[]>([
+		'list',
+		'--all',
+		'--limit=0',
+	]);
+
+	if (!result.success) {
+		return result;
+	}
+
+	// Convert to BeadsIssue and filter out 'hold' labeled tickets
+	const tickets = result.data.map(raw => toBeadsIssue(raw));
+	const filteredTickets = tickets.filter(t => !hasHoldLabel(t));
+
+	return {
+		success: true,
+		data: filteredTickets,
+	};
+}
+
+/**
+ * @deprecated Use getTicketChildren instead
+ * Gets all tasks within an epic (recursively for nested issues)
+ *
+ * @param epicId - The epic ID to get tasks for
+ * @returns Promise resolving to array of tasks in the epic
+ */
+export async function getEpicTasks(
+	epicId: string,
+): Promise<BeadsCommandResult<BeadsIssue[]>> {
+	return getTicketChildren(epicId);
 }
 
 /**
