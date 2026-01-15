@@ -639,3 +639,15 @@ Started: 2026-01-13
   - scaffoldAll() now accepts ScaffoldOptions with `initializeBeads?: boolean` for explicit control over init behavior
   - Update dependent components (SetupWizard) when changing scaffolding exports to maintain typecheck pass
 ---
+
+## 2026-01-15 - US-043
+- What was implemented: Validated SetupWizard for beads workflow (all functionality implemented in US-042)
+- Files changed:
+  - No code changes needed - all acceptance criteria were satisfied by US-042 implementation
+- **Learnings:**
+  - When user stories have overlapping acceptance criteria, later stories may be satisfied by earlier work
+  - Validation stories (like US-043) ensure specific functionality is verified even when implemented alongside other changes
+  - SetupWizard checklist shows: .ralph directory, prompt.txt, .beads directory, ralph-plan skill (prd.json removed)
+  - Completion message directs users to `/ralph-plan` for creating epics with tasks in beads
+  - The xo linter bug with `unicorn/expiring-todo-comments` is documented - use `tsc --noEmit` for reliable verification
+---
