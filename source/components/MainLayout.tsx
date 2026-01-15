@@ -1,13 +1,23 @@
 import React from 'react';
-import {Box} from 'ink';
+import {Box, Text} from 'ink';
 import TicketList from './TicketList.js';
 import TabPanel, {type TabId} from './TabPanel.js';
-import type {BeadsIssue} from '../types/beads.js';
+import TaskDetailPanel from './TaskDetailPanel.js';
+import ExternalBlockers from './ExternalBlockers.js';
+import type {BeadsIssue, EpicSummary} from '../types/beads.js';
+
+/**
+ * View mode for the right panel
+ */
+export type RightPanelView = 'task-detail' | 'output';
 
 type Props = {
+	selectedEpic: EpicSummary;
 	tasks: BeadsIssue[];
-	selectedTaskId?: string | null;
+	externalBlockers?: BeadsIssue[];
+	selectedTask?: BeadsIssue | null;
 	onTaskSelect?: (task: BeadsIssue) => void;
+	rightPanelView: RightPanelView;
 	activeTab: TabId;
 	outputLines: string[];
 	progressFilePath: string;
@@ -15,12 +25,16 @@ type Props = {
 	height?: number;
 	terminalWidth?: number;
 	isTaskListActive?: boolean;
+	isExternalBlockersActive?: boolean;
 };
 
 export default function MainLayout({
+	selectedEpic,
 	tasks,
-	selectedTaskId,
+	externalBlockers = [],
+	selectedTask,
 	onTaskSelect,
+	rightPanelView,
 	activeTab,
 	outputLines,
 	progressFilePath,
@@ -28,6 +42,7 @@ export default function MainLayout({
 	height,
 	terminalWidth = 80,
 	isTaskListActive = true,
+	isExternalBlockersActive = false,
 }: Props) {
 	// Calculate content panel width (70% of terminal width minus padding/borders)
 	// Left column is 30%, right is 70%
@@ -39,35 +54,69 @@ export default function MainLayout({
 	const leftColumnWidth = Math.floor(terminalWidth * 0.3) - 1;
 
 	// Calculate max visible lines for content panels
-	// Account for: title (1), tab headers (1), margin (1), border top/bottom (2), scroll indicator (1)
-	const contentPanelReserved = 6;
+	// Account for: epic header (2), external blockers (2), border top/bottom (2), scroll indicator (1)
+	const contentPanelReserved = 7;
 	const effectiveMaxLines = height
 		? Math.max(3, height - contentPanelReserved)
 		: maxLines;
 
+	// Reserve lines for external blockers section in left panel
+	const externalBlockersReserved = externalBlockers.length > 0 ? 2 : 1;
+	const taskListMaxHeight = effectiveMaxLines - externalBlockersReserved;
+
 	return (
-		<Box flexDirection="row" height={height} overflow="hidden">
-			{/* Left column: TicketList (~30%) */}
-			<Box flexDirection="column" width="30%" paddingRight={1}>
-				<TicketList
-					tasks={tasks}
-					selectedTaskId={selectedTaskId}
-					onTaskSelect={onTaskSelect}
-					maxHeight={effectiveMaxLines}
-					availableWidth={leftColumnWidth}
-					isActive={isTaskListActive}
-				/>
+		<Box flexDirection="column" height={height} overflow="hidden">
+			{/* Epic header */}
+			<Box marginBottom={1}>
+				<Text bold color="magenta">
+					◎ {selectedEpic.title}
+				</Text>
+				<Text color="gray">
+					{' '}
+					({selectedEpic.closedCount}/
+					{selectedEpic.openCount + selectedEpic.closedCount} tasks •{' '}
+					{Math.round(selectedEpic.progress)}%)
+				</Text>
 			</Box>
 
-			{/* Right column: TabPanel (~70%) */}
-			<Box flexDirection="column" flexGrow={1} width="70%">
-				<TabPanel
-					activeTab={activeTab}
-					outputLines={outputLines}
-					progressFilePath={progressFilePath}
-					maxLines={effectiveMaxLines}
-					contentWidth={rightPanelWidth}
-				/>
+			{/* Main content area */}
+			<Box flexDirection="row" flexGrow={1} overflow="hidden">
+				{/* Left column: TicketList + ExternalBlockers (~30%) */}
+				<Box flexDirection="column" width="30%" paddingRight={1}>
+					<TicketList
+						tasks={tasks}
+						selectedTaskId={selectedTask?.id}
+						onTaskSelect={onTaskSelect}
+						maxHeight={taskListMaxHeight}
+						availableWidth={leftColumnWidth}
+						isActive={isTaskListActive}
+					/>
+					<Box marginTop={1}>
+						<ExternalBlockers
+							blockers={externalBlockers}
+							isActive={isExternalBlockersActive}
+						/>
+					</Box>
+				</Box>
+
+				{/* Right column: TaskDetailPanel or TabPanel (~70%) */}
+				<Box flexDirection="column" flexGrow={1} width="70%">
+					{rightPanelView === 'task-detail' && selectedTask ? (
+						<TaskDetailPanel
+							task={selectedTask}
+							maxLines={effectiveMaxLines}
+							contentWidth={rightPanelWidth}
+						/>
+					) : (
+						<TabPanel
+							activeTab={activeTab}
+							outputLines={outputLines}
+							progressFilePath={progressFilePath}
+							maxLines={effectiveMaxLines}
+							contentWidth={rightPanelWidth}
+						/>
+					)}
+				</Box>
 			</Box>
 		</Box>
 	);

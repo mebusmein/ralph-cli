@@ -19,7 +19,7 @@ import {
 } from './lib/index.js';
 import {checkSetup, getRalphPaths} from './utils/setup-checker.js';
 import type {AppView, StoryWithStatus} from './types/state.js';
-import type {BeadsIssue} from './types/beads.js';
+import type {BeadsIssue, EpicSummary} from './types/beads.js';
 
 /**
  * Convert StoryWithStatus to BeadsIssue for MainLayout compatibility
@@ -377,13 +377,36 @@ export default function App({
 	// Convert stories to BeadsIssue format for MainLayout
 	const tasks = useMemo(() => stories.map(storyToBeadsIssue), [stories]);
 
+	// Create a mock epic from the PRD config for MainLayout compatibility
+	// This will be replaced with real epic data in US-046
+	const mockEpic = useMemo<EpicSummary>(() => {
+		const closedCount = stories.filter(s => s.status === 'passed').length;
+		const totalCount = stories.length;
+		return {
+			id: 'prd',
+			title: 'PRD Stories',
+			progress: totalCount > 0 ? (closedCount / totalCount) * 100 : 0,
+			openCount: totalCount - closedCount,
+			closedCount,
+			hasBlockedTasks: false,
+		};
+	}, [stories]);
+
+	// Find the selected task from currentStoryId
+	const selectedTask = useMemo(
+		() => tasks.find(t => t.id === currentStoryId) ?? null,
+		[tasks, currentStoryId],
+	);
+
 	if (view === 'main') {
 		return (
 			<ErrorBoundary onRetry={handleRetry} onExit={exit}>
 				<Box flexDirection="column" height={terminalHeight}>
 					<MainLayout
+						selectedEpic={mockEpic}
 						tasks={tasks}
-						selectedTaskId={currentStoryId}
+						selectedTask={selectedTask}
+						rightPanelView={isRunning ? 'output' : 'task-detail'}
 						activeTab={activeTab}
 						outputLines={outputLines}
 						progressFilePath={paths.progressFile}
