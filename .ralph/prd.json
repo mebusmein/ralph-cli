@@ -289,7 +289,7 @@
 				"Update completion message for beads workflow"
 			],
 			"priority": 17,
-			"passes": false,
+			"passes": true,
 			"notes": ""
 		},
 		{

@@ -1,19 +1,19 @@
 ---
 name: ralph-plan
-description: Plan new features or projects for the Ralph agent by generating or updating structured user stories in .ralph/prd.json.
+description: Plan new features or projects for the Ralph agent by generating or updating structured epics with tasks using the beads issue tracker.
 ---
 
 # Ralph Plan Skill
 
-Plan a Ralph session by creating or updating the `.ralph/prd.json` file with well-defined user stories.
+Plan a Ralph session by creating epics with well-defined tasks using the beads issue tracker (`bd` CLI).
 
 ## Trigger
 
 Use this skill when the user wants to:
 
 - Plan a new feature or project for Ralph to implement
-- Create user stories from a feature description
-- Set up a Ralph session
+- Create epics with tasks from a feature description
+- Set up a Ralph session with beads-based task tracking
 
 ## Workflow
 
@@ -32,51 +32,88 @@ For features that integrate with existing code:
 - Identify patterns and conventions to follow
 - Note dependencies and integration points
 
-### 3. Generate User Stories
+### 3. Design Issue Structure
 
-Break down the feature into atomic, implementable user stories. Each story should be:
+Break down the feature into a hierarchy of issues. Beads supports flexible nesting:
 
-- **Small enough** to implement in a single focused session
-- **Independent** where possible
-- **Testable** with clear acceptance criteria
-
-### 4. Create prd.json
-
-Write to `.ralph/prd.json` using this format:
-
-```json
-{
-	"branchName": "ralph/<feature-name>",
-	"userStories": [
-		{
-			"id": "US-001",
-			"title": "Short descriptive title",
-			"acceptanceCriteria": [
-				"Specific testable criterion",
-				"Another criterion",
-				"typecheck passes"
-			],
-			"priority": 1,
-			"passes": false,
-			"notes": ""
-		}
-	]
-}
+```
+Epic (top-level feature)
+├── Feature (major component)
+│   ├── Sub-feature (optional nesting)
+│   │   ├── Task (implementation unit)
+│   │   └── Task
+│   └── Task
+├── Task
+└── Bug (if discovered during planning)
 ```
 
-### Story Guidelines
+Each task should be:
 
-- **IDs**: Sequential format `US-001`, `US-002`, etc.
+- **Small enough** to implement in a single focused session
+- **Independent** where possible (use dependencies for ordering)
+- **Testable** with clear acceptance criteria
+
+### 4. Create Epic and Tasks
+
+First, create the epic:
+
+```bash
+bd create --type=epic --title="Feature name" --description="Overview of the feature" --priority=2
+```
+
+Then create child tasks with `--parent`:
+
+```bash
+bd create --type=task --parent=<epic-id> --title="Task title" --priority=2 --description="$(cat <<'EOF'
+Brief description of what needs to be done.
+
+## Acceptance Criteria
+- [ ] Specific testable criterion
+- [ ] Another criterion
+- [ ] typecheck passes
+EOF
+)"
+```
+
+For nested features within an epic:
+
+```bash
+bd create --type=feature --parent=<epic-id> --title="Component name" --priority=2
+bd create --type=task --parent=<feature-id> --title="Sub-task" --priority=2
+```
+
+### Issue Guidelines
+
+- **Types**: `epic` (top-level), `feature` (major component), `task` (implementation unit), `bug` (defect)
 - **Titles**: Action-oriented, e.g., "Add login form", "Create user API endpoint"
-- **Acceptance Criteria**:
-  - Specific, testable conditions
-  - Always include "typecheck passes" for TypeScript projects
-  - Include test requirements if applicable
-- **Priority**: Lower number = higher priority. Stories are picked by highest priority first.
-- **passes**: Always `false` initially (Ralph sets to `true` when complete)
-- **notes**: Leave empty initially; Ralph uses this for implementation notes
+- **Priority**: 0-4 (0=critical, 1=high, 2=medium, 3=low, 4=backlog). Lower number = higher priority.
+- **Acceptance Criteria**: Use markdown checklists in the description:
+  ```markdown
+  ## Acceptance Criteria
+  - [ ] Specific, testable condition
+  - [ ] Always include "typecheck passes" for TypeScript projects
+  - [ ] Include test requirements if applicable
+  ```
 
-### 5. Initialize Progress File
+### 5. Set Up Dependencies
+
+Use dependencies to control task order when tasks have prerequisites:
+
+```bash
+# Task B depends on Task A (A must complete before B can start)
+bd dep add <task-b-id> <task-a-id>
+
+# Alternative shorthand: A blocks B
+bd dep <task-a-id> --blocks <task-b-id>
+```
+
+Common dependency patterns:
+
+- Tests depend on implementation
+- Integration tasks depend on component tasks
+- UI depends on API endpoints
+
+### 6. Initialize Progress File
 
 If `.ralph/progress.txt` is empty, initialize it with:
 
@@ -95,14 +132,29 @@ Started: <current-date>
 
 Include any known patterns and key files discovered during codebase analysis.
 
-### 6. Confirm with User
+### 7. Confirm with User
 
-Present the generated stories and ask if any adjustments are needed before the Ralph session begins.
+Present the created epic structure and ask if any adjustments are needed before the Ralph session begins.
+
+Use `bd show <epic-id>` to display the epic with its tasks.
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `bd create --type=epic --title="..."` | Create a new epic |
+| `bd create --type=task --parent=<id> --title="..."` | Create a task under a parent |
+| `bd create --type=feature --parent=<id> --title="..."` | Create a feature under a parent |
+| `bd dep add <issue> <depends-on>` | Add dependency (issue depends on depends-on) |
+| `bd show <id>` | View issue details |
+| `bd list --parent=<id>` | List children of an issue |
+| `bd update <id> --status=in_progress` | Mark task as in progress |
+| `bd close <id>` | Mark task as complete |
 
 ## Output
 
 After planning is complete, remind the user:
 
-1. Review the stories in `.ralph/prd.json`
-2. Create the feature branch: `git checkout -b <branchName>`
-3. Start Ralph with the prompt in `.ralph/prompt.txt`
+1. Review the epic structure with `bd show <epic-id>`
+2. Start Ralph - it will prompt for epic selection and handle branch creation automatically
+3. Ralph will work through tasks in priority order, respecting dependencies

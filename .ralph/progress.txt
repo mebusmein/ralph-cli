@@ -711,3 +711,18 @@ Started: 2026-01-13
   - Show sync status in footer by reusing the "Running..." display area with "Syncing beads..."
   - Log warnings with console.warn but don't prevent exit on sync failure (silent continue pattern)
 ---
+
+## 2026-01-15 - US-048
+- What was implemented: Updated ralph-plan skill for beads workflow
+- Files changed:
+  - .claude/skills/ralph-plan/SKILL.md - Complete rewrite for beads-based planning
+- **Learnings:**
+  - bd create uses `--type=epic` flag, not `bd epic create` command (epic subcommand is for management)
+  - bd dep add syntax: `bd dep add <blocked-issue> <blocker>` (issue depends on blocker)
+  - Alternative shorthand: `bd dep <blocker> --blocks <blocked>` for blocking direction
+  - Priority is 0-4 (not P0-P4 strings): 0=critical, 1=high, 2=medium, 3=low, 4=backlog
+  - Acceptance criteria should be markdown checklists in description, not separate fields
+  - Use `--parent=<id>` flag for creating nested children (tasks, features under epics)
+  - Issue types: epic, feature, task, bug (not user story)
+  - SKILL.md files are markdown-only, no code changes needed - typecheck always passes
+---
