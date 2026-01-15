@@ -481,3 +481,16 @@ Started: 2026-01-13
   - The xo linter bug with `unicorn/expiring-todo-comments` persists - use `tsc --noEmit` for verification
   - AVA + ts-node has compatibility issues with Node.js v24 - tests may fail to run but code is correct
 ---
+
+## 2026-01-15 - US-032
+- What was implemented: Beads types module for the beads migration
+- Files changed:
+  - source/types/beads.ts - New module with BeadsIssue, EpicSummary, BeadsCommandResult types
+  - source/types/index.ts - Added barrel export for beads types
+- **Learnings:**
+  - BeadsStatus uses literal union type: `'open' | 'in_progress' | 'closed'`
+  - BeadsPriority uses numeric literal union: `0 | 1 | 2 | 3 | 4` (0=critical, 4=backlog)
+  - BeadsCommandResult uses discriminated union with `success: true/false` for typed error handling
+  - The `parent` field in BeadsIssue is `string | undefined` to handle top-level issues
+  - Created branch `ralph/beads-migration` from main for the migration work
+---
