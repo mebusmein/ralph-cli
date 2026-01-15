@@ -5,6 +5,7 @@ export type KeyboardCallbacks = {
 	onTabChange?: (tab: TabId) => void;
 	onStopAfterIteration?: () => void;
 	onImmediateCancel?: () => void;
+	onBackToTicketSelect?: () => void;
 };
 
 type Options = {
@@ -19,6 +20,7 @@ type Options = {
  * - Tab: Switch between Output/Progress tabs
  * - Ctrl+C: Cancel immediately
  * - Ctrl+X or 'q': Stop after current iteration completes
+ * - 'b': Go back to ticket selection
  */
 export function useKeyboardControls(
 	callbacks: KeyboardCallbacks,
@@ -48,6 +50,12 @@ export function useKeyboardControls(
 				callbacks.onStopAfterIteration?.();
 				return;
 			}
+
+			// 'b': go back to ticket selection
+			if (input === 'b') {
+				callbacks.onBackToTicketSelect?.();
+				return;
+			}
 		},
 		{isActive: enabled},
 	);
@@ -60,4 +68,5 @@ export const KEYBOARD_HELP = {
 	tabSwitch: 'Tab: switch tabs',
 	stopGraceful: 'q/Ctrl+X: stop after iteration',
 	cancelImmediate: 'Ctrl+C: cancel now',
+	backToTickets: 'b: back to tickets',
 };

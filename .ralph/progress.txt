@@ -81,3 +81,13 @@ Started: 2026-01-15
   - MainLayout uses nullish coalescing (`??`) for content fallback to allow null/undefined custom content
   - Pre-existing eslint unicorn plugin bug blocks ava tests - build and prettier pass
 ---
+
+## 2026-01-15 - ralph-cli-04u
+- Added back navigation keyboard control ('b' key) to useKeyboardControls.ts
+- Files changed:
+  - `source/hooks/useKeyboardControls.ts` - Added onBackToTicketSelect callback, 'b' key handling, help text
+- **Learnings:**
+  - KeyboardCallbacks type extends with optional callbacks for new keybindings
+  - KEYBOARD_HELP object provides help text for footer display
+  - useInput callback pattern: check key condition, call callback with optional chaining, return to prevent other matches
+---
