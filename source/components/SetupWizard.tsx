@@ -5,7 +5,6 @@ import {
 	createRalphDirectory,
 	createPromptTemplate,
 	createProgressTemplate,
-	installRalphPlanSkill,
 	initializeBeads,
 	type ScaffoldResult,
 	type BeadsInitResult,
@@ -18,7 +17,6 @@ type ScaffoldingStatus = {
 	ralphDir?: ScaffoldResult;
 	promptFile?: ScaffoldResult;
 	progressFile?: ScaffoldResult;
-	ralphPlanSkill?: ScaffoldResult;
 	beads?: BeadsInitResult;
 };
 
@@ -34,7 +32,6 @@ const SCAFFOLD_ITEMS: Array<{key: keyof ScaffoldingStatus; name: string}> = [
 	{key: 'ralphDir', name: '.ralph directory'},
 	{key: 'promptFile', name: 'prompt.txt'},
 	{key: 'progressFile', name: 'progress.txt'},
-	{key: 'ralphPlanSkill', name: 'ralph-plan skill'},
 	{key: 'beads', name: '.beads (issue tracker)'},
 ];
 
@@ -189,9 +186,6 @@ export default function SetupWizard({
 			const progressFile = createProgressTemplate(cwd);
 			setScaffoldStatus(prev => ({...prev, progressFile}));
 
-			const ralphPlanSkill = installRalphPlanSkill(cwd);
-			setScaffoldStatus(prev => ({...prev, ralphPlanSkill}));
-
 			// Initialize beads issue tracker
 			const beads = initializeBeads(cwd);
 			setScaffoldStatus(prev => ({...prev, beads}));
@@ -201,7 +195,6 @@ export default function SetupWizard({
 				ralphDir.success &&
 				promptFile.success &&
 				progressFile.success &&
-				ralphPlanSkill.success &&
 				beads.success;
 
 			if (allSuccess) {
@@ -300,7 +293,7 @@ export default function SetupWizard({
 						<Text> </Text>
 						<Text>Next steps:</Text>
 						<Text color="gray">
-							1. Run /ralph-plan to create an epic with tasks in beads
+							1. Use beads to create an epic with tasks (bd create --type=epic)
 						</Text>
 						<Text color="gray">
 							2. Run ralph-cli to select an epic and start

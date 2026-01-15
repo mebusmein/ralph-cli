@@ -18,7 +18,7 @@ npm install --global ralph-cli
 
 1. Navigate to your project directory
 2. Run `ralph-cli` - the setup wizard will create the necessary files and initialize beads
-3. Use `/ralph-plan` in Claude Code to create an epic with tasks
+3. Use beads to create an epic with tasks (`bd create --type=epic`)
 4. Run `ralph-cli` again, select your epic, and enter the number of iterations
 
 ## CLI Usage
@@ -121,7 +121,6 @@ When you run `ralph-cli` in a new project, it automatically:
 2. Copies the default `prompt.txt` template
 3. Creates `progress.txt` with initial structure
 4. Initializes beads (`.beads/` directory) if not present
-5. Installs the `ralph-plan` skill in `.claude/skills`
 
 The wizard prompts for confirmation before making changes.
 
@@ -169,19 +168,19 @@ The wizard prompts for confirmation before making changes.
 8. When all tasks are done or blocked, the epic is auto-closed
 9. At session end, `bd sync` pushes beads changes to remote
 
-## Creating Epics with ralph-plan
+## Creating Epics
 
-Use the `/ralph-plan` skill in Claude Code to create structured epics:
+Use the beads CLI to create structured epics:
 
-```
-/ralph-plan Create a user authentication system
+```bash
+bd create --type=epic --title="User authentication system"
+bd create --type=task --parent=<epic-id> --title="Add login form"
 ```
 
 This creates:
 
 - An epic issue
-- Feature and task children with dependencies
-- Acceptance criteria as markdown checklists
+- Task children with dependencies
 - Priority ordering (0=critical, 4=backlog)
 
 ## License

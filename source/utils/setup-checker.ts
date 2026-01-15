@@ -11,7 +11,6 @@ import type {
  */
 export function getRalphPaths(cwd: string = process.cwd()): RalphPaths {
 	const ralphDir = join(cwd, '.ralph');
-	const skillsDir = join(cwd, '.claude', 'skills');
 
 	return {
 		ralphDir,
@@ -19,8 +18,6 @@ export function getRalphPaths(cwd: string = process.cwd()): RalphPaths {
 		prdFile: join(ralphDir, 'prd.json'),
 		progressFile: join(ralphDir, 'progress.txt'),
 		promptFile: join(ralphDir, 'prompt.txt'),
-		skillsDir,
-		ralphPlanSkill: join(skillsDir, 'ralph-plan', 'SKILL.md'),
 	};
 }
 
@@ -47,7 +44,6 @@ export function checkSetup(cwd: string = process.cwd()): SetupCheckResult {
 		createCheckItem('.ralph directory', paths.ralphDir),
 		createCheckItem('prompt.txt', paths.promptFile),
 		beadsCheck,
-		createCheckItem('ralph-plan skill', paths.ralphPlanSkill),
 	];
 
 	const isComplete = items.every(item => item.exists);

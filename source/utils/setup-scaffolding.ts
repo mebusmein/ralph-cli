@@ -3,7 +3,6 @@ import {execSync} from 'node:child_process';
 import {dirname} from 'node:path';
 import {
 	DEFAULT_PROMPT_TEMPLATE,
-	DEFAULT_RALPH_PLAN_SKILL,
 	getProgressTemplate,
 } from '../templates/index.js';
 import {getRalphPaths} from './setup-checker.js';
@@ -169,17 +168,6 @@ export function createProgressTemplate(
 }
 
 /**
- * Install the ralph-plan skill in .claude/skills
- * Idempotent: only creates if file doesn't exist
- */
-export function installRalphPlanSkill(
-	cwd: string = process.cwd(),
-): ScaffoldResult {
-	const paths = getRalphPaths(cwd);
-	return createFileIfNotExists(paths.ralphPlanSkill, DEFAULT_RALPH_PLAN_SKILL);
-}
-
-/**
  * Result of running full scaffold
  */
 export type FullScaffoldResult = {
@@ -189,7 +177,6 @@ export type FullScaffoldResult = {
 		ralphDir: ScaffoldResult;
 		promptFile: ScaffoldResult;
 		progressFile: ScaffoldResult;
-		ralphPlanSkill: ScaffoldResult;
 		beads: BeadsInitResult;
 	};
 };
@@ -215,7 +202,6 @@ export function scaffoldAll(
 	const ralphDir = createRalphDirectory(cwd);
 	const promptFile = createPromptTemplate(cwd);
 	const progressFile = createProgressTemplate(cwd);
-	const ralphPlanSkill = installRalphPlanSkill(cwd);
 
 	// Initialize beads if requested
 	let beads: BeadsInitResult;
@@ -235,7 +221,6 @@ export function scaffoldAll(
 		ralphDir.success &&
 		promptFile.success &&
 		progressFile.success &&
-		ralphPlanSkill.success &&
 		beads.success;
 
 	return {
@@ -245,7 +230,6 @@ export function scaffoldAll(
 			ralphDir,
 			promptFile,
 			progressFile,
-			ralphPlanSkill,
 			beads,
 		},
 	};

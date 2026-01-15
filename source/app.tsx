@@ -503,7 +503,7 @@ export default function App({
 				<Text> </Text>
 				<Text>To get started:</Text>
 				<Text color="gray">
-					1. Run /ralph-plan in Claude to create epics with tasks
+					1. Use beads to create epics with tasks (bd create --type=epic)
 				</Text>
 				<Text color="gray">2. Run ralph-cli again</Text>
 				<Text> </Text>
@@ -546,7 +546,10 @@ export default function App({
 		};
 
 		return (
-			<ErrorBoundary onRetry={handleRetry} onExit={() => void handleExitWithSync()}>
+			<ErrorBoundary
+				onRetry={handleRetry}
+				onExit={() => void handleExitWithSync()}
+			>
 				<Box flexDirection="column" height={terminalHeight}>
 					<MainLayout
 						selectedEpic={updatedEpic}

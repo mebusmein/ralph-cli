@@ -8,3 +8,21 @@ Started: 2026-01-15
 - (List key files relevant to this feature)
 
 ---
+
+## 2026-01-15 - ralph-cli-b75
+- Removed custom ralph-plan skill - beads now handles AI-managed task tracking
+- Files changed:
+  - Deleted `.claude/skills/ralph-plan/SKILL.md`
+  - `source/components/SetupWizard.tsx` - Removed skill installation step
+  - `source/utils/setup-scaffolding.ts` - Removed `installRalphPlanSkill` function and references
+  - `source/utils/setup-checker.ts` - Removed skill path from `getRalphPaths` and check items
+  - `source/templates/index.ts` - Removed `DEFAULT_RALPH_PLAN_SKILL` constant
+  - `source/types/config.ts` - Removed `skillsDir` and `ralphPlanSkill` from `RalphPaths`
+  - `source/app.tsx` - Updated "no-prd" view message to reference beads
+  - `readme.md` - Updated documentation to reflect beads workflow
+  - `.prettierignore` - Added `.beads`, `.claude`, `CLAUDE.md` to ignore formatting
+- **Learnings:**
+  - The ralph-plan skill was used for PRD-based planning (prd.json) - now replaced by beads
+  - Multiple files referenced the skill: types, scaffolding, checker, templates, UI components
+  - Pre-existing test infrastructure issues (eslint unicorn plugin, ava config) not related to changes
+---

@@ -4,12 +4,10 @@
 export type RalphPaths = {
 	ralphDir: string;
 	beadsDir: string;
-	/** @deprecated Use beadsDir instead. Will be removed in US-049. */
+	/** @deprecated Use beadsDir instead. Will be removed in a future version. */
 	prdFile: string;
 	progressFile: string;
 	promptFile: string;
-	skillsDir: string;
-	ralphPlanSkill: string;
 };
 
 /**
