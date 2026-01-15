@@ -163,6 +163,7 @@ export default function MainLayout({
 				activeTab={activeTab}
 				outputLines={outputLines}
 				progressFilePath={progressFilePath}
+				selectedTicket={selectedTask}
 				maxLines={effectiveMaxLines}
 				contentWidth={rightPanelWidth}
 			/>

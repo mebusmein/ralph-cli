@@ -31,10 +31,12 @@ export function useKeyboardControls(
 
 	useInput(
 		(input, key) => {
-			// Tab key: switch between tabs
+			// Tab key: cycle through tabs (output -> progress -> ticket -> output)
 			if (key.tab) {
-				const newTab: TabId = activeTab === 'output' ? 'progress' : 'output';
-				callbacks.onTabChange?.(newTab);
+				const tabOrder: TabId[] = ['output', 'progress', 'ticket'];
+				const currentIndex = tabOrder.indexOf(activeTab);
+				const nextIndex = (currentIndex + 1) % tabOrder.length;
+				callbacks.onTabChange?.(tabOrder[nextIndex]!);
 				return;
 			}
 

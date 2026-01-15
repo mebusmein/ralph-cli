@@ -139,3 +139,17 @@ Started: 2026-01-15
   - TicketList.tsx already had rendering support for closed status (green ✓ checkmark)
   - Using --all flag is cleaner than making multiple queries and combining results
 ---
+
+## 2026-01-15 - ralph-cli-y1e
+- Added third tab "Ticket" to TabPanel to view selected ticket during execution
+- Tab key now cycles through: Output → Progress Log → Ticket → Output
+- Files changed:
+  - `source/components/TabPanel.tsx` - Added 'ticket' to TabId, imported TaskDetailPanel, added selectedTicket prop, renders TaskDetailPanel when ticket tab active
+  - `source/hooks/useKeyboardControls.ts` - Updated tab cycling from toggle to 3-tab rotation using tabOrder array
+  - `source/components/MainLayout.tsx` - Pass selectedTask to TabPanel as selectedTicket prop
+- **Learnings:**
+  - TabId type union used across TabPanel, useKeyboardControls, MainLayout - change in one requires updates to type
+  - Tab cycling pattern: use array of tab IDs with modulo arithmetic for clean rotation
+  - TaskDetailPanel already existed and renders BeadsIssue with description, status, blockers, blocks info
+  - Empty state handling: show "Select a ticket" message when no ticket selected in Ticket tab
+---
