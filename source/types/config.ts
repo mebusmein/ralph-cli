@@ -3,6 +3,8 @@
  */
 export type RalphPaths = {
 	ralphDir: string;
+	beadsDir: string;
+	/** @deprecated Use beadsDir instead. Will be removed in US-049. */
 	prdFile: string;
 	progressFile: string;
 	promptFile: string;
@@ -24,6 +26,7 @@ export type SetupCheckItem = {
  */
 export type SetupCheckResult = {
 	isComplete: boolean;
+	isBeadsInitialized: boolean;
 	items: SetupCheckItem[];
 };
 
