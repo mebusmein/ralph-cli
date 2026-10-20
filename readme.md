@@ -1,68 +1,79 @@
 # ralph-cli
 
-An interactive TUI (Terminal User Interface) for managing Claude-based user story execution. Ralph orchestrates Claude Code to work through PRD user stories automatically, providing live output streaming and progress tracking.
+> Let Claude Code work through your backlog, one user story at a time.
 
-## Prerequisites
+`ralph-cli` is a terminal UI that runs [Claude Code](https://github.com/anthropics/claude-code) in a loop against a list of user stories. Each iteration, Claude picks the next incomplete story from `.ralph/prd.json`, implements it, commits, and logs what it learned. Ralph streams the output live, tracks which stories pass, and stops when you tell it to or when everything is done.
 
-- Node.js 16+
-- [Claude CLI](https://github.com/anthropics/claude-code) installed and authenticated
+## Requirements
 
-## Install
+- Node.js 16 or newer
+- The `claude` CLI installed, authenticated, and on your `PATH`
+
+## Installation
+
+Build from source and link the binary:
 
 ```bash
-npm install --global ralph-cli
+git clone https://github.com/mebusmein/ralph-cli.git
+cd ralph-cli
+npm install
+npm run build
+npm link
 ```
 
-## Quick Start
-
-1. Navigate to your project directory
-2. Run `ralph-cli` - the setup wizard will create the necessary files
-3. Edit `.ralph/prd.json` to add your user stories
-4. Run `ralph-cli` again and enter the number of iterations to run
-
-## CLI Usage
+## Quick start
 
 ```bash
-# Interactive mode - prompts for iterations
-ralph-cli
+cd your-project
+ralph-cli          # first run: the setup wizard scaffolds .ralph/
+```
 
-# Run a specific number of iterations directly
-ralph-cli 5
+1. Accept the setup wizard. It creates `.ralph/` and installs the `ralph-plan` skill.
+2. Add user stories to `.ralph/prd.json`, either by hand or by asking Claude Code to "plan this feature with ralph-plan".
+3. Run `ralph-cli` again, enter the number of iterations, and press `Enter`.
 
-# Log raw JSON output to a file for debugging
-ralph-cli 5 --log-file output.json
+## Usage
 
-# Show help
+```bash
+ralph-cli                            # interactive: choose iterations in the UI
+ralph-cli 5                          # start 5 iterations immediately
+ralph-cli 5 --log-file output.json   # also write the raw JSON stream to a file
 ralph-cli --help
-ralph-cli -h
 ```
 
-### Options
+| Option                  | Description                                     |
+| ----------------------- | ----------------------------------------------- |
+| `[iterations]`          | Number of iterations to run (positive integer)  |
+| `--log-file, -l <path>` | Write Claude's raw stream-json output to a file |
+| `--help, -h`            | Show help                                       |
 
-| Option                  | Description                                       |
-| ----------------------- | ------------------------------------------------- |
-| `[iterations]`          | Number of iterations to run (positional argument) |
-| `--log-file, -l <path>` | Log raw JSON stream output to a file              |
-| `--help, -h`            | Show help message                                 |
+In interactive mode the iteration count is entered in the footer (1–100).
 
-## The `.ralph` Directory
+### Keyboard controls
 
-Ralph uses a `.ralph` directory in your project root to store configuration and state:
+| Key             | Action                                       |
+| --------------- | -------------------------------------------- |
+| `Enter`         | Start iterations                             |
+| `Tab`           | Switch between the Output and Progress tabs  |
+| `q` / `Ctrl+X`  | Stop gracefully after the current iteration  |
+| `Ctrl+C`        | Cancel immediately and kill the Claude process |
+
+## Project files
+
+Ralph keeps its state in a `.ralph/` directory at the project root:
 
 ```
 .ralph/
-├── prd.json        # Your user stories and their status
-├── prompt.txt      # The prompt template sent to Claude
-└── progress.txt    # Execution log and learnings
+├── prd.json       # user stories and their pass/fail status
+├── prompt.txt     # prompt sent to Claude on every iteration
+└── progress.txt   # running log of work done and lessons learned
 ```
 
-### prd.json
-
-The PRD file contains your user stories in JSON format:
+### `prd.json`
 
 ```json
 {
-	"branchName": "feature/my-feature",
+	"branchName": "feature/login",
 	"userStories": [
 		{
 			"id": "US-001",
@@ -70,7 +81,7 @@ The PRD file contains your user stories in JSON format:
 			"acceptanceCriteria": [
 				"Form has email and password fields",
 				"Submit button validates input",
-				"typecheck passes"
+				"Typecheck passes"
 			],
 			"priority": 1,
 			"passes": false,
@@ -80,55 +91,57 @@ The PRD file contains your user stories in JSON format:
 }
 ```
 
-- Stories are processed by priority (lowest number = highest priority)
-- `passes: false` indicates incomplete stories
-- Claude marks stories as `passes: true` when complete
+- Story IDs use the `US-XXX` format (three digits). Ralph uses them to detect which story was completed.
+- Incomplete stories (`"passes": false`) are worked on in ascending `priority` order.
+- A story is marked `"passes": true` once Claude finishes it.
 
-### prompt.txt
+### `prompt.txt`
 
-The prompt template supports variable expansion:
+The instructions Claude receives each iteration. Edit it to match your project's conventions (test commands, commit style, and so on). Two variables are expanded before sending:
 
-- `$PRD_FILE` - Path to prd.json
-- `$PROGRESS_FILE` - Path to progress.txt
+| Variable         | Expands to                  |
+| ---------------- | --------------------------- |
+| `$PRD_FILE`      | Path to `.ralph/prd.json`   |
+| `$PROGRESS_FILE` | Path to `.ralph/progress.txt` |
 
-### progress.txt
+If the file is missing, Ralph falls back to its built-in default prompt.
 
-A log of completed work and learnings. Claude appends entries after each iteration with:
+### `progress.txt`
 
-- What was implemented
-- Files changed
-- Learnings and patterns discovered
+An append-only log. After each story, Claude records what it implemented, which files changed, and patterns worth remembering, so later iterations build on earlier ones.
 
-## Setup Wizard
+## How it works
 
-When you run `ralph-cli` in a new project, it automatically:
+1. Ralph reads `prd.json` and picks the highest-priority incomplete story.
+2. It runs `claude --print --output-format stream-json --verbose --dangerously-skip-permissions` with the expanded prompt.
+3. Output streams into the Output tab as Claude works.
+4. When the iteration ends, Ralph looks for the story ID in Claude's output, preferring commit messages such as `feat: US-001 - Create login form`, and marks that story as passing in `prd.json`.
+5. The loop repeats until the iteration count is reached, every story passes, or you stop it.
 
-1. Creates the `.ralph` directory
-2. Copies the default `prompt.txt` template
-3. Creates an empty `prd.json` template
-4. Creates `progress.txt` with initial structure
-5. Installs the `ralph-plan` skill in `.claude/skills`
+> **Warning:** Claude runs with `--dangerously-skip-permissions`, so it can edit files and run commands without asking. Run Ralph on a clean branch or in a sandbox, and review the commits it makes.
 
-The wizard prompts for confirmation before making changes.
+## Development
 
-## Keyboard Controls
+```bash
+npm install
+npm run dev     # compile in watch mode
+npm run build   # compile to dist/
+npm test        # prettier + xo + ava
+```
 
-| Key             | Action                                      |
-| --------------- | ------------------------------------------- |
-| `Tab`           | Switch between Output and Progress Log tabs |
-| `Ctrl+C`        | Cancel immediately (kills current process)  |
-| `Ctrl+X` or `q` | Stop after current iteration completes      |
-| `Enter`         | Start iterations (when input is focused)    |
+Source layout:
 
-## How It Works
-
-1. Ralph reads `.ralph/prd.json` to find incomplete user stories
-2. For each iteration, it selects the highest priority incomplete story
-3. Claude Code is invoked with the prompt template and story context
-4. Output streams live to the TUI while Claude works
-5. When Claude commits with a story ID (e.g., `feat: US-001 - Title`), that story is marked complete
-6. Progress is logged to `progress.txt`
-7. The process repeats for the specified number of iterations
+```
+source/
+├── cli.tsx         # argument parsing and entry point
+├── app.tsx         # top-level Ink app
+├── components/     # UI: layout, ticket list, output, progress log, setup wizard
+├── hooks/          # keyboard controls
+├── lib/            # Claude execution, iteration loop, PRD read/write, stream parsing
+├── templates/      # default prompt, PRD, progress, and ralph-plan skill
+├── types/          # shared types
+└── utils/          # setup checks and scaffolding
+```
 
 ## License
 
