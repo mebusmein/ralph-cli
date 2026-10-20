@@ -51,12 +51,12 @@ In interactive mode the iteration count is entered in the footer (1–100).
 
 ### Keyboard controls
 
-| Key             | Action                                       |
-| --------------- | -------------------------------------------- |
-| `Enter`         | Start iterations                             |
-| `Tab`           | Switch between the Output and Progress tabs  |
-| `q` / `Ctrl+X`  | Stop gracefully after the current iteration  |
-| `Ctrl+C`        | Cancel immediately and kill the Claude process |
+| Key            | Action                                         |
+| -------------- | ---------------------------------------------- |
+| `Enter`        | Start iterations                               |
+| `Tab`          | Switch between the Output and Progress tabs    |
+| `q` / `Ctrl+X` | Stop gracefully after the current iteration    |
+| `Ctrl+C`       | Cancel immediately and kill the Claude process |
 
 ## Project files
 
@@ -99,9 +99,9 @@ Ralph keeps its state in a `.ralph/` directory at the project root:
 
 The instructions Claude receives each iteration. Edit it to match your project's conventions (test commands, commit style, and so on). Two variables are expanded before sending:
 
-| Variable         | Expands to                  |
-| ---------------- | --------------------------- |
-| `$PRD_FILE`      | Path to `.ralph/prd.json`   |
+| Variable         | Expands to                    |
+| ---------------- | ----------------------------- |
+| `$PRD_FILE`      | Path to `.ralph/prd.json`     |
 | `$PROGRESS_FILE` | Path to `.ralph/progress.txt` |
 
 If the file is missing, Ralph falls back to its built-in default prompt.
